@@ -5,7 +5,7 @@ This file is the short pin reference for firmware generation. The authoritative 
 ## STM32F103C8T6 Pins
 
 | Function | Pin | Direction | Electrical Interface | Active Level / Notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | I2C-A SCL | `PB8` | Output/input | Software I2C, open-drain style | OLED, `P_air`, `P_tank`; 4.7k pull-up to 3.3V |
 | I2C-A SDA | `PB9` | Output/input | Software I2C, open-drain style | OLED, `P_air`, `P_tank`; 4.7k pull-up to 3.3V |
 | I2C-B SCL | `PB6` | Output/input | Software I2C, open-drain style | `P_basket`; 4.7k pull-up to 3.3V |
@@ -30,7 +30,7 @@ This file is the short pin reference for firmware generation. The authoritative 
 ## I2C Devices
 
 | Bus | Pins | Device | Address Selection | 7-bit Address |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | I2C-A | `PB8/PB9` | OLED | Fixed | `0x3C` |
 | I2C-A | `PB8/PB9` | `P_air` | `SDO/ADDR` to GND | `0x6C` |
 | I2C-A | `PB8/PB9` | `P_tank` | `SDO/ADDR` to 3.3V | `0x6D` |
@@ -41,7 +41,7 @@ Code must use 7-bit addresses internally. If an existing OLED driver uses `0x78`
 ## UM244 Signal Wiring
 
 | UM244 Terminal | Wiring |
-|---|---|
+| --- | --- |
 | `PU+` | +5V |
 | `DR+` | +5V |
 | `MF+` | +5V |
@@ -56,7 +56,7 @@ UM244 input high level requires more than 4V, so STM32 3.3V GPIO must not direct
 The four limit switches are 24V NPN sensors. Brown = +24V, blue = 24V 0V, black = NPN output. The black wire enters the 24V side of an optocoupler input circuit.
 
 | Physical State | STM32 GPIO Read |
-|---|---|
+| --- | --- |
 | Not triggered | High `1` |
 | Triggered | Low `0` |
 
@@ -69,7 +69,7 @@ Safety rules:
 ## Buzzer
 
 | Buzzer Module Pin | Connection |
-|---|---|
+| --- | --- |
 | `VCC` | 3.3V |
 | `GND` | GND |
 | `I/O` | `PA5` |
