@@ -41,7 +41,10 @@ Do not modify existing `Hardware/*.c` files unless needed to integrate the new m
 
 - Use STM32 Standard Peripheral Library, not HAL.
 - Keep code compatible with Keil C compiler.
-- Avoid C99-only features unless explicitly required.
+- The Keil project has C99 enabled. C99 syntax is allowed.
+- Prefer conservative Keil-compatible C style for maintainability.
+- Avoid advanced C99 features unless they clearly simplify the code and compile successfully in Keil.
+- Do not use variable-length arrays or compound literals.
 - Avoid dynamic memory allocation.
 - Keep interrupt handlers short; do not put complex control logic inside interrupts.
 - Use clear module boundaries: one `.c/.h` pair per module.
