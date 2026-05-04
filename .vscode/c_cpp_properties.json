@@ -5,10 +5,7 @@
             "includePath": [
                 "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\start",
                 "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\user",
-                "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\Library",
-                "${workspaceFolder}/Reference/Water_Level_Sensor_Example/SYSTEM/adc",
-                "${workspaceFolder}/Hardware",
-                "${workspaceFolder}/system"
+                "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\Library"
             ],
             "defines": [
                 "USE_STDPERIPH_DRIVER",
@@ -86,7 +83,8 @@
                 "__vfp_status(x,y)=0"
             ],
             "intelliSenseMode": "${default}",
-            "cStandard": "c99"
+            "cStandard": "c99",
+            "cppStandard": "c++26"
         }
     ],
     "version": 4
