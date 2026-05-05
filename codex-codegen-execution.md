@@ -15,6 +15,7 @@
 - `Materials/限位器接线.png`
 - `Materials/4-1 OLED显示屏.jpg`
 - `Materials/3-有源蜂鸣器/有源蜂鸣器模块原理图.png`
+- `Reference/WF5805_2BAR官方驱动包`
 
 ## 1. 新对话启动提示词
 
@@ -36,6 +37,7 @@
 - Materials/限位器接线.png
 - Materials/4-1 OLED显示屏.jpg
 - Materials/3-有源蜂鸣器/有源蜂鸣器模块原理图.png
+- Reference/WF5805_2BAR官方驱动包
 
 阅读后请先总结：
 1. 当前硬件连接假设
@@ -117,6 +119,7 @@ Codex 必须遵守：
 - `Hardware/LED.c/.h`
 - `system/Delay.c/.h`
 - `project1.uvprojx`
+- `Reference/WF5805_2BAR官方驱动包`
 
 输出：
 
@@ -179,7 +182,7 @@ Codex 必须遵守：
 
 ## 6. 阶段 2：软件 I2C 与 WF5805F 驱动
 
-目标：实现两组软件 I2C 和 WF5805F 原始压力读取。
+目标：实现三组软件 I2C 和 WF5805F 原始压力读取。
 
 建议新增文件：
 
@@ -190,16 +193,19 @@ Codex 必须遵守：
 
 必须先做：
 
-- 阅读 `WF5805F 2Bar Datasheet V1.0.pdf`。
+- 阅读 `WF5805F 2Bar Datasheet V1.0.pdf` 和 `Reference/WF5805_2BAR官方驱动包`。
 - 摘录 I2C 地址、读写命令、返回字节格式、状态位、压力换算公式。
+- 明确官方驱动 `WFSensorIICDevice 0XDA` 是 WF5805F 的 8-bit 写地址，对应固件内部 7-bit 地址 `0x6D`。
 - 如果 PDF 信息不完整，停止并向用户索要资料，不允许猜测。
 
 必须实现：
 
-- I2C-A：`PB8/PB9`，OLED、`P_air`、`P_tank`。
+- I2C-A：`PB8/PB9`，OLED、`P_air`。
 - I2C-B：`PB6/PB7`，`P_basket`。
+- I2C-C：`PB0/PB5`，`P_tank`。
 - 软件 I2C 起步速率约 100kHz。
 - 7-bit 地址内部表示。
+- 三颗 WF5805F 固定地址相同，不允许任意两颗挂在同一条 I2C 总线上。
 - 每颗传感器独立读数接口。
 - 读数失败计数接口。
 - 总线恢复或重新初始化接口。
@@ -207,7 +213,8 @@ Codex 必须遵守：
 阶段检查：
 
 - 不破坏现有 OLED 软件 I2C 使用方式，或明确迁移方案。
-- 地址 `0x6C/0x6D` 和 OLED `0x3C` 不冲突。
+- WF5805F 固定地址 `0x6D` 和 OLED `0x3C` 不冲突。
+- 每条 I2C 总线上最多一颗 WF5805F。
 - 返回压力单位统一为 `pressure_hpa_x100`。
 - 读数失败时返回错误码，不返回伪造有效值。
 

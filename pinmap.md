@@ -6,10 +6,12 @@ This file is the short pin reference for firmware generation. The authoritative 
 
 | Function | Pin | Direction | Electrical Interface | Active Level / Notes |
 | --- | --- | --- | --- | --- |
-| I2C-A SCL | `PB8` | Output/input | Software I2C, open-drain style | OLED, `P_air`, `P_tank`; 4.7k pull-up to 3.3V |
-| I2C-A SDA | `PB9` | Output/input | Software I2C, open-drain style | OLED, `P_air`, `P_tank`; 4.7k pull-up to 3.3V |
+| I2C-A SCL | `PB8` | Output/input | Software I2C, open-drain style | OLED, `P_air`; 4.7k pull-up to 3.3V |
+| I2C-A SDA | `PB9` | Output/input | Software I2C, open-drain style | OLED, `P_air`; 4.7k pull-up to 3.3V |
 | I2C-B SCL | `PB6` | Output/input | Software I2C, open-drain style | `P_basket`; 4.7k pull-up to 3.3V |
 | I2C-B SDA | `PB7` | Output/input | Software I2C, open-drain style | `P_basket`; 4.7k pull-up to 3.3V |
+| I2C-C SCL | `PB0` | Output/input | Software I2C, open-drain style | `P_tank`; 4.7k pull-up to 3.3V |
+| I2C-C SDA | `PB5` | Output/input | Software I2C, open-drain style | `P_tank`; 4.7k pull-up to 3.3V |
 | UM244 STEP | `PA0 / TIM2_CH1` | Output | 3.3V GPIO drives NPN/level-shift input | Sends pulse to UM244 `PU-`; exact edge per UM244 manual |
 | UM244 DIR | `PA3` | Output | 3.3V GPIO drives NPN/level-shift input | Direction must be verified during bring-up |
 | UM244 MF/release | `PA4` | Output | 3.3V GPIO drives NPN/level-shift input | Motor release control; do not release in automatic mode |
@@ -32,11 +34,13 @@ This file is the short pin reference for firmware generation. The authoritative 
 | Bus | Pins | Device | Address Selection | 7-bit Address |
 | --- | --- | --- | --- | --- |
 | I2C-A | `PB8/PB9` | OLED | Fixed | `0x3C` |
-| I2C-A | `PB8/PB9` | `P_air` | `SDO/ADDR` to GND | `0x6C` |
-| I2C-A | `PB8/PB9` | `P_tank` | `SDO/ADDR` to 3.3V | `0x6D` |
-| I2C-B | `PB6/PB7` | `P_basket` | `SDO/ADDR` to GND | `0x6C` |
+| I2C-A | `PB8/PB9` | `P_air` | 4-pin module fixed address | `0x6D` |
+| I2C-B | `PB6/PB7` | `P_basket` | 4-pin module fixed address | `0x6D` |
+| I2C-C | `PB0/PB5` | `P_tank` | 4-pin module fixed address | `0x6D` |
 
-Code must use 7-bit addresses internally. If an existing OLED driver uses `0x78`, treat it as the 8-bit write address for OLED `0x3C`.
+Code must use 7-bit addresses internally. If an existing OLED driver uses `0x78`, treat it as the 8-bit write address for OLED `0x3C`. The WF5805 official reference driver uses `WFSensorIICDevice 0XDA`; treat that as the 8-bit write address for WF5805F `0x6D`, with read address `0xDB`.
+
+Do not place two WF5805F modules on the same I2C bus. The purchased 4-pin modules do not expose `SDO/ADDR`, so their address cannot be changed by wiring.
 
 ## UM244 Signal Wiring
 

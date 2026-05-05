@@ -32,8 +32,10 @@ Pass condition: user interface works without motor power.
 ## 3. WF5805F Sensors
 
 - Confirm all three sensors respond on I2C.
-- Confirm I2C-A has OLED, `P_air`, and `P_tank`.
+- Confirm I2C-A has OLED and `P_air`.
 - Confirm I2C-B has `P_basket`.
+- Confirm I2C-C has `P_tank`.
+- Confirm no I2C bus has more than one WF5805F module.
 - Keep `P_air` in air and confirm it is stable.
 - Put `P_tank` and `P_basket` into water and confirm calculated depth increases with immersion depth.
 - Confirm `tank_depth_mm` and `basket_depth_mm` are plausible and stable after the 10 second startup wait.
