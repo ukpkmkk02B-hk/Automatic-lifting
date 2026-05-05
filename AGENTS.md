@@ -6,6 +6,10 @@ This is a Keil5 STM32F103C8T6 Standard Peripheral Library project.
 
 Before writing or modifying code, read and follow:
 
+- `codex-codegen-execution.md`
+- `requirements.md`
+- `pinmap.md`
+- `bringup-checklist.md`
 - `docs/superpowers/specs/2026-05-04-aquarium-lift-wiring-design.md`
 - `Materials/UM244 使用手册V1.1.pdf`
 - `Materials/42HSC1409-250NE2.pdf`
