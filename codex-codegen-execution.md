@@ -17,6 +17,61 @@
 - `Materials/3-有源蜂鸣器/有源蜂鸣器模块原理图.png`
 - `Reference/WF5805_2BAR官方驱动包`
 
+## 项目结构总览
+
+本项目是 Keil5 STM32F103C8T6 标准外设库工程。代码生成时应把“已有工程结构”和“计划新增模块结构”分开理解：已有库、启动文件和系统延时文件保持稳定；新业务代码主要进入 `Hardware/`，主循环入口只收敛到 `user/main.c`。
+
+当前项目结构：
+
+| 路径 | 作用 | 代码生成策略 |
+| --- | --- | --- |
+| `AGENTS.md` | Codex 工程级规则 | 必读，不作为业务代码修改对象 |
+| `requirements.md` | 固件需求摘要 | 作为快速需求入口 |
+| `pinmap.md` | 引脚、有效电平、I2C 地址摘要 | 作为写 GPIO 和驱动前的硬件核对表 |
+| `bringup-checklist.md` | 硬件上电调试清单 | 作为硬件验证顺序 |
+| `codex-codegen-execution.md` | 分阶段代码生成执行手册 | 作为新对话执行入口 |
+| `docs/superpowers/specs/2026-05-04-aquarium-lift-wiring-design.md` | 主规格文档 | 权威系统行为和硬件方案 |
+| `Materials/` | 外设资料、PDF、接线图 | 写驱动前必须查阅 |
+| `Reference/` | 参考代码包 | 只作参考，不直接整包复制 |
+| `Hardware/` | 现有 OLED、Key、LED、水相关代码；后续主要新增模块位置 | 允许新增 `.c/.h`，谨慎修改已有文件 |
+| `user/main.c` | 固件主入口 | 允许最小化修改，用于初始化和调用状态机 |
+| `user/stm32f10x_it.c/.h` | 中断入口 | 原则上不放复杂业务逻辑 |
+| `system/` | 延时等基础系统代码 | 不修改 |
+| `Library/` | STM32 标准外设库 | 不修改 |
+| `start/` | 启动文件和 CMSIS 基础文件 | 不修改 |
+| `Objects/`、`Listings/`、`DebugConfig/` | Keil 生成物和调试配置 | 不修改、不提交 |
+| `project1.uvprojx` | Keil 工程文件 | 仅在加入新增 `.c` 文件或预留 Flash 参数区时修改 |
+| `project1.uvoptx` | Keil 选项文件 | 谨慎修改，只在构建配置必须调整时处理 |
+| `project1.uvguix.ukpkmkk` | Keil 用户界面布局 | 不修改、不提交 |
+
+计划固件模块结构：
+
+| 模块 | 建议文件 | 职责 |
+| --- | --- | --- |
+| 板级配置 | `Hardware/board_config.h` | 集中定义引脚、有效电平、默认参数、方向反转宏 |
+| 蜂鸣器 | `Hardware/buzzer.c/.h` | `PA5` 低电平触发报警输出 |
+| 限位输入 | `Hardware/limit.c/.h` | 四个 24V NPN 限位的低有效读取和一致性判断 |
+| 按键事件 | `Hardware/key_scan.c/.h` | 短按、长按、3 秒维护入口事件 |
+| 软件 I2C | `Hardware/soft_i2c.c/.h` | I2C-A、I2C-B、I2C-C 三组可配置软件 I2C |
+| WF5805F 驱动 | `Hardware/wf5805f.c/.h` | 固定地址 `0x6D` 压力传感器读取和错误返回 |
+| 水深计算 | `Hardware/water_depth.c/.h` | 压力差换算、滑动平均、水深单位统一 |
+| 错误管理 | `Hardware/error_code.h`、`Hardware/error_manager.c/.h` | 固定错误码、严重故障、蜂鸣器静音不清故障 |
+| 步进控制 | `Hardware/stepper_um244.c/.h` | STEP/DIR/MF、有限脉冲、限位急停 |
+| 位置与回零 | `Hardware/position_tracker.c/.h`、`Hardware/homing.c/.h` | `basket_position_mm = 0`、位置可信标志、维护回零 |
+| 参数存储 | `Hardware/param_store.c/.h`、`Hardware/crc16.c/.h` | Flash A/B 页、CRC、断电恢复状态 |
+| UI 页面 | `Hardware/ui_pages.c/.h`、`Hardware/menu.c/.h` | OLED 页面、参数设置、报警显示、维护页面 |
+| 调度与状态机 | `Hardware/nap_scheduler.c/.h`、`Hardware/self_test.c/.h`、`Hardware/app_state.c/.h` | 开机自检、断电恢复、自动打盹、故障/维护状态机 |
+
+运行数据流：
+
+```text
+WF5805F/I2C -> water_depth -> error_manager -> app_state
+limit/key   -> safety/menu -> app_state
+app_state   -> stepper_um244/buzzer/OLED/param_store
+```
+
+实现顺序必须从底层硬件抽象到主状态机逐层推进。任何阶段发现引脚冲突、地址冲突、资料不明确或构建失败，都应停在当前阶段说明问题，不继续叠加后续模块。
+
 ## 1. 新对话启动提示词
 
 在新的 Codex 对话中，第一条消息建议直接复制以下内容：

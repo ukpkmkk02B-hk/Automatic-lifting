@@ -20,6 +20,9 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - WF5805F module type: purchased 4-pin module with only `VDD/GND/SCL/SDA`.
 - WF5805F address: fixed, official reference driver uses 8-bit write address `0xDA`, corresponding to 7-bit address `0x6D`.
 - Because all three WF5805F modules have the same address, each sensor must be isolated on its own software I2C bus. Do not place two WF5805F modules on the same I2C bus.
+- I2C-A: `PB8/PB9` for OLED and `P_air`.
+- I2C-B: `PB6/PB7` for `P_basket`.
+- I2C-C: `PB0/PB5` for `P_tank`.
 - Motor driver: one UM244 driver.
 - Motors: two 42HSC1409-250NE2 captive linear stepper motors connected in parallel to the same driver output.
 - Limits: four 24V NPN limit switches, optocoupler-isolated into STM32.
@@ -75,9 +78,6 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - Water jump threshold: `10mm/min`
 - Sensor consecutive failure alarm: `5` failures
 - I2C reinitialization failure alarm: `5` failures
-- I2C-A: `PB8/PB9` for OLED and `P_air`.
-- I2C-B: `PB6/PB7` for `P_basket`.
-- I2C-C: `PB0/PB5` for `P_tank`.
 - Restart depth difference threshold: `3mm`
 
 ## Required Firmware Modules
