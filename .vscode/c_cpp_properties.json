@@ -5,7 +5,8 @@
             "includePath": [
                 "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\start",
                 "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\user",
-                "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\Library"
+                "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\Library",
+                "${workspaceFolder}/**"
             ],
             "defines": [
                 "USE_STDPERIPH_DRIVER",
@@ -84,7 +85,8 @@
             ],
             "intelliSenseMode": "${default}",
             "cStandard": "c99",
-            "cppStandard": "c++26"
+            "cppStandard": "gnu++14",
+            "compilerPath": "D:/mingw64/bin/gcc.exe"
         }
     ],
     "version": 4
