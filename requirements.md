@@ -2,7 +2,7 @@
 
 This file is a short implementation brief for Codex. The authoritative design is:
 
-- `docs/superpowers/specs/2026-05-04-aquarium-lift-wiring-design.md`
+- `Auto-lift-wiring-design.md`
 - `pinmap.md`
 - `bringup-checklist.md`
 - `AGENTS.md`
@@ -15,18 +15,19 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 
 - MCU: STM32F103C8T6 minimum system board.
 - Toolchain: Keil5, STM32 Standard Peripheral Library.
-- Display: 0.96 inch OLED on software I2C.
+- Display: 0.96 inch OLED on software I2C, fixed on `PB8/PB9`.
 - Sensors: three WF5805F absolute pressure sensors.
 - WF5805F module type: purchased 4-pin module with only `VDD/GND/SCL/SDA`.
 - WF5805F address: fixed, official reference driver uses 8-bit write address `0xDA`, corresponding to 7-bit address `0x6D`.
 - Because all three WF5805F modules have the same address, each sensor must be isolated on its own software I2C bus. Do not place two WF5805F modules on the same I2C bus.
-- I2C-A: `PB8/PB9` for OLED and `P_air`.
+- OLED-I2C: `PB8/PB9` for OLED only.
+- I2C-A: `PA6/PA7` for `P_air`.
 - I2C-B: `PB6/PB7` for `P_basket`.
-- I2C-C: `PB0/PB5` for `P_tank`.
+- I2C-C: `PA8/PA9` for `P_tank`.
 - Motor driver: one UM244 driver.
 - Motors: two 42HSC1409-250NE2 captive linear stepper motors connected in parallel to the same driver output.
 - Limits: four 24V NPN limit switches, optocoupler-isolated into STM32.
-- Alarm: low-level-trigger active buzzer module on `PA5`.
+- Alarm: low-level-trigger active buzzer module on `PA0`.
 
 ## Control Requirements
 
@@ -50,10 +51,18 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - Maximum single nap movement: `16 pulse`.
 - Default nap interval at `1mm/day` and `8 pulse`: about `14.4min`.
 - Minimum nap interval: `5min`.
-- Automatic pulse frequency: start with `20Hz`, allow `20-50Hz`.
+- Automatic nap pulse frequency: default `800Hz`, allow fallback to `400Hz`.
+- Automatic nap bursts of `1-16 pulse` do not use acceleration or deceleration.
+- `DIR` setup and hold time must be at least `5ms` around STEP output.
+- `APP_NAP_MOVE` must use a busy lock so one nap burst cannot be triggered twice.
 - Manual speed: only one speed, `1mm/s = 800 pulse/s`.
 - Homing speed: default `0.5mm/s`, not higher than `1mm/s`.
 - Automatic mode must not continuously run the motor at very low speed. Use nap-mode motion.
+- Key scan period: `10ms`; key debounce stable time: `25ms`.
+- Key pins: `PB11/PB10/PB1/PB0`, grouped on the minimum system board top header.
+- Short key press: `25-1000ms`; normal long press: `>=1000ms`; maintenance entry: `PB10 >=3000ms`.
+- Limit input sample period: `5-10ms`; trigger confirm `20ms`; release confirm `50ms`.
+- During motion, a raw active limit in the current movement direction must stop motion immediately, then the filtered state is used for fault display.
 
 ## Safety Requirements
 
@@ -83,7 +92,7 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 ## Required Firmware Modules
 
 - Board configuration header for pins, levels, and constants.
-- Software I2C for three configurable sensor/display buses.
+- Software I2C for OLED plus three independent WF5805F sensor buses.
 - WF5805F pressure sensor driver.
 - Water depth calculation and filtering.
 - Limit switch input and safety logic.

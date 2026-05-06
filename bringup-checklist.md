@@ -24,18 +24,19 @@ Pass condition: all supply voltages are correct and no STM32 pin sees 5V or 24V 
 - Flash a minimal firmware or the project firmware with motor output disabled.
 - Confirm OLED shows the self-test page.
 - Confirm buzzer short-beeps once at startup, then stays off.
-- Press `PB1`, `PB11`, `PB10`, and `PA7`; confirm OLED shows the expected key events.
-- Confirm `PA5` high turns buzzer off and `PA5` low turns buzzer on.
+- Press `PB1`, `PB11`, `PB10`, and `PB0`; confirm OLED shows the expected key events.
+- Confirm `PA0` high turns buzzer off and `PA0` low turns buzzer on.
 
 Pass condition: user interface works without motor power.
 
 ## 3. WF5805F Sensors
 
 - Confirm all three sensors respond on I2C.
-- Confirm I2C-A has OLED and `P_air`.
-- Confirm I2C-B has `P_basket`.
-- Confirm I2C-C has `P_tank`.
-- Confirm no I2C bus has more than one WF5805F module.
+- Confirm OLED is alone on OLED-I2C `PB8/PB9`.
+- Confirm I2C-A `PA6/PA7` has `P_air`.
+- Confirm I2C-B `PB6/PB7` has `P_basket`.
+- Confirm I2C-C `PA8/PA9` has `P_tank`.
+- Confirm no I2C bus has more than one WF5805F module, and OLED does not share a bus with any WF5805F module.
 - Keep `P_air` in air and confirm it is stable.
 - Put `P_tank` and `P_basket` into water and confirm calculated depth increases with immersion depth.
 - Confirm `tank_depth_mm` and `basket_depth_mm` are plausible and stable after the 10 second startup wait.
@@ -59,6 +60,7 @@ Pass condition: every limit input matches the physical switch and mismatch detec
 
 - Keep motors disconnected or driver disabled.
 - Confirm `STEP`, `DIR`, and `MF` outputs reach the level-shift circuit.
+- Confirm STEP/DIR/MF are wired from `PA3/PA4/PA5` respectively.
 - Confirm UM244 `PU+`, `DR+`, and `MF+` are tied to +5V.
 - Confirm STM32 GPIO is not directly connected to UM244 input plus terminals.
 - Confirm `MF` default state does not release the motor.
@@ -69,9 +71,10 @@ Pass condition: control signals are electrically correct before motor power test
 
 - Set UM244 current to the recommended starting value, 2.5A.
 - Set UM244 microstep to 1600 pulse/rev.
+- Confirm automatic nap STEP frequency is 800Hz by default, or 400Hz if configured as the fallback.
 - Test one short manual movement at low speed.
 - Confirm both motors move in the same direction.
-- If one motor direction is reversed, swap one phase pair on that motor only.
+- If one motor direction is reversed, swap the two wires inside one winding on that motor only, for example red/yellow or green/blue.
 - Confirm software "up" makes the basket move up and basket water depth become shallower.
 - Confirm software "down" makes the basket move down and basket water depth become deeper.
 

@@ -6,7 +6,12 @@
                 "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\start",
                 "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\user",
                 "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\Library",
-                "${workspaceFolder}/**"
+                "C:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\system",
+                "C:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\Objects",
+                "C:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\Hardware",
+                "C:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\Listings",
+                "C:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\.vscode",
+                "C:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\DebugConfig"
             ],
             "defines": [
                 "USE_STDPERIPH_DRIVER",

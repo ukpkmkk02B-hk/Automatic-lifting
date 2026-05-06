@@ -10,11 +10,12 @@ Before writing or modifying code, read and follow:
 - `requirements.md`
 - `pinmap.md`
 - `bringup-checklist.md`
-- `docs/superpowers/specs/2026-05-04-aquarium-lift-wiring-design.md`
+- `Auto-lift-wiring-design.md`
 - `Materials/UM244 使用手册V1.1.pdf`
 - `Materials/42HSC1409-250NE2.pdf`
 - `Materials/WF5805F 2Bar Datasheet V1.0.pdf`
 - `Reference/WF5805_2BAR官方驱动包`
+- `Materials/最小系统板.png`
 - `Materials/限位器接线.png`
 - `Materials/4-1 OLED显示屏.jpg`
 - `Materials/3-有源蜂鸣器/有源蜂鸣器模块原理图.png`
