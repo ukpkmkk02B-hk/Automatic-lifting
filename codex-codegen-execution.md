@@ -5,6 +5,7 @@
 不要把本文档当成规格源头。权威需求仍以以下文件为准：
 
 - `AGENTS.md`
+- `skill.md`
 - `requirements.md`
 - `pinmap.md`
 - `bringup-checklist.md`
@@ -27,6 +28,7 @@
 | 路径                                    | 作用                                                  | 代码生成策略                                    |
 | --------------------------------------- | ----------------------------------------------------- | ----------------------------------------------- |
 | `AGENTS.md`                             | Codex 工程级规则                                      | 必读，不作为业务代码修改对象                    |
+| `skill.md`                              | 编码行为准则                                          | 写代码前必读，约束假设、简化、最小改动和验证    |
 | `requirements.md`                       | 固件需求摘要                                          | 作为快速需求入口                                |
 | `pinmap.md`                             | 引脚、有效电平、I2C 地址摘要                          | 作为写 GPIO 和驱动前的硬件核对表                |
 | `bringup-checklist.md`                  | 硬件上电调试清单                                      | 作为硬件验证顺序                                |
@@ -82,6 +84,7 @@ app_state   -> stepper_um244/buzzer/OLED/param_store
 
 这是一个 Keil5 STM32F103C8T6 标准外设库工程。请先阅读项目根目录的 AGENTS.md，然后按 AGENTS.md 要求继续阅读：
 
+- skill.md
 - requirements.md
 - pinmap.md
 - bringup-checklist.md
@@ -97,7 +100,7 @@ app_state   -> stepper_um244/buzzer/OLED/param_store
 - Reference/WF5805_2BAR官方驱动包
 
 阅读后请先总结：
-1. 当前硬件连接假设
+1. 当前硬件连接假设，包括 24V、5V、3.3V 电源路径和共地关系
 2. 推荐的软件模块划分
 3. 需要新增/修改哪些 .c/.h 文件
 4. 哪些目录和文件不能修改

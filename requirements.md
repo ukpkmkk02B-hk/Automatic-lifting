@@ -28,6 +28,9 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - Motors: two 42HSC1409-250NE2 captive linear stepper motors connected in parallel to the same driver output.
 - Limits: four 24V NPN limit switches, optocoupler-isolated into STM32.
 - Alarm: low-level-trigger active buzzer module on `PA0`.
+- Power: 220V AC to 24V 5A supply; 24V to 5V buck powers the STM32 minimum system board `5V` pin and UM244 `PU+/DR+/MF+` signal common positive terminals.
+- 3.3V peripherals: OLED, WF5805F modules, and buzzer module must be powered from the minimum system board 3.3V rail or a dedicated 3.3V regulator, not from 5V.
+- Grounding: 24V supply negative, 5V buck GND, STM32 GND, and UM244 signal-side reference GND must have a defined common reference. 24V limit switch outputs still enter STM32 only through optocoupler isolation.
 
 ## Control Requirements
 
@@ -144,3 +147,6 @@ After reboot, run self-test first. If the previous state was automatic, all sens
 - No two-driver independent motor synchronization.
 - No automatic movement during power loss.
 - No automatic homing on every boot.
+
+
+//   ${workspaceFolder}/**

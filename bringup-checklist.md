@@ -12,12 +12,15 @@ Use this checklist after wiring the hardware and before putting fish into the ba
 ## 1. Power Checks
 
 - Measure 24V supply output before connecting UM244.
-- Measure 5V buck output before connecting it to signal circuits.
-- Measure 3.3V supply before powering STM32, OLED, buzzer, and WF5805F boards.
-- Confirm STM32 GND, 5V GND, and UM244 signal reference GND are connected as designed.
+- Adjust and measure the 24V-to-5V buck output before connecting it to the minimum system board or UM244 signal terminals.
+- Connect the 5V buck output to the minimum system board `5V` pin, not to the `3.3V` pin.
+- Confirm the same 5V buck output feeds UM244 `PU+`, `DR+`, and `MF+`.
+- After applying 5V to the minimum system board, measure the 3.3V rail before powering OLED, buzzer, and WF5805F boards.
+- Confirm STM32 GND, 5V buck GND, 24V supply negative, and UM244 signal reference GND are connected as designed.
+- Confirm no OLED, WF5805F, buzzer, or STM32 GPIO pin is connected directly to 5V.
 - Confirm 24V limit switch signals enter STM32 only through optocoupler isolation.
 
-Pass condition: all supply voltages are correct and no STM32 pin sees 5V or 24V directly.
+Pass condition: all supply voltages are correct; only the minimum system board `5V` power pin receives 5V, and no STM32 GPIO or 3.3V peripheral pin sees 5V or 24V directly.
 
 ## 2. STM32, OLED, Keys, Buzzer
 

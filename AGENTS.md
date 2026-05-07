@@ -6,6 +6,7 @@ This is a Keil5 STM32F103C8T6 Standard Peripheral Library project.
 
 Before writing or modifying code, read and follow:
 
+- `skill.md`
 - `codex-codegen-execution.md`
 - `requirements.md`
 - `pinmap.md`
@@ -19,6 +20,8 @@ Before writing or modifying code, read and follow:
 - `Materials/限位器接线.png`
 - `Materials/4-1 OLED显示屏.jpg`
 - `Materials/3-有源蜂鸣器/有源蜂鸣器模块原理图.png`
+
+`skill.md` is the required coding-behavior guide for this project. Read it before code work and apply its rules on assumptions, simplicity, surgical changes, and verification.
 
 The design document is authoritative for wiring, pin allocation, nap-mode motion, power recovery behavior, alarm behavior, and safety behavior.
 

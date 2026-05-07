@@ -50,14 +50,14 @@ Do not place two WF5805F modules on the same I2C bus. The purchased 4-pin module
 
 | UM244 Terminal | Wiring                                                        |
 | -------------- | ------------------------------------------------------------- |
-| `PU+`          | +5V                                                           |
-| `DR+`          | +5V                                                           |
-| `MF+`          | +5V                                                           |
+| `PU+`          | +5V from the 24V-to-5V buck module                            |
+| `DR+`          | +5V from the 24V-to-5V buck module                            |
+| `MF+`          | +5V from the 24V-to-5V buck module                            |
 | `PU-`          | NPN collector or optocoupler output controlled by STM32 `PA3` |
 | `DR-`          | NPN collector or optocoupler output controlled by STM32 `PA4` |
 | `MF-`          | NPN collector or optocoupler output controlled by STM32 `PA5` |
 
-UM244 input high level requires more than 4V, so STM32 3.3V GPIO must not directly drive `PU/DR/MF` input terminals.
+The same 24V-to-5V buck output also powers the STM32 minimum system board through its `5V` pin. UM244 input high level requires more than 4V, so STM32 3.3V GPIO must not directly drive `PU/DR/MF` input terminals.
 
 ## Limit Switch Logic
 
