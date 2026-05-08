@@ -6,32 +6,32 @@ The pin layout follows `Materials/最小系统板.png`: keep OLED on `PB8/PB9`, 
 
 ## STM32F103C8T6 Pins
 
-| Function          | Pin              | Direction    | Electrical Interface                                 | Active Level / Notes                                    |
-| ----------------- | ---------------- | ------------ | ---------------------------------------------------- | ------------------------------------------------------- |
-| OLED-I2C SCL      | `PB8`            | Output/input | Software I2C, open-drain style                       | OLED only; 4.7k pull-up to 3.3V                         |
-| OLED-I2C SDA      | `PB9`            | Output/input | Software I2C, open-drain style                       | OLED only; 4.7k pull-up to 3.3V                         |
-| I2C-A SCL         | `PA6`            | Output/input | Software I2C, open-drain style                       | `P_air`; adjacent to `PA7`; 4.7k pull-up to 3.3V         |
-| I2C-A SDA         | `PA7`            | Output/input | Software I2C, open-drain style                       | `P_air`; adjacent to `PA6`; 4.7k pull-up to 3.3V         |
-| I2C-B SCL         | `PB6`            | Output/input | Software I2C, open-drain style                       | `P_basket`; 4.7k pull-up to 3.3V                        |
-| I2C-B SDA         | `PB7`            | Output/input | Software I2C, open-drain style                       | `P_basket`; 4.7k pull-up to 3.3V                        |
-| I2C-C SCL         | `PA8`            | Output/input | Software I2C, open-drain style                       | `P_tank`; adjacent to `PA9`; 4.7k pull-up to 3.3V        |
-| I2C-C SDA         | `PA9`            | Output/input | Software I2C, open-drain style                       | `P_tank`; adjacent to `PA8`; 4.7k pull-up to 3.3V        |
-| UM244 STEP        | `PA3 / TIM2_CH4` | Output       | 3.3V GPIO drives single-channel NPN optocoupler      | Sends active-low pulse to UM244 `PU-`; adjacent group   |
-| UM244 DIR         | `PA4`            | Output       | 3.3V GPIO drives single-channel NPN optocoupler      | Direction must be verified during bring-up              |
-| UM244 MF/release  | `PA5`            | Output       | 3.3V GPIO drives single-channel NPN optocoupler      | Default high; do not release in automatic mode          |
-| Left upper limit  | `PB12`           | Input        | Optocoupler output, pull-up                          | Low = triggered                                         |
-| Left lower limit  | `PB13`           | Input        | Optocoupler output, pull-up                          | Low = triggered                                         |
-| Right upper limit | `PB14`           | Input        | Optocoupler output, pull-up                          | Low = triggered                                         |
-| Right lower limit | `PB15`           | Input        | Optocoupler output, pull-up                          | Low = triggered                                         |
-| Key 1             | `PB1`            | Input        | Existing key                                         | Menu/decrease/manual down                               |
-| Key 2             | `PB11`           | Input        | Existing key                                         | Menu/increase/manual up                                 |
-| Pause/confirm key | `PB10`           | Input        | New key                                              | Pause/confirm/alarm silence/maintenance entry           |
-| Page/menu key     | `PB0`            | Input        | New key                                              | Page switch/cancel                                      |
-| Active buzzer     | `PA0`            | Output       | Direct to low-level-trigger active buzzer module I/O | High = off, low = on                                    |
-| LED1              | `PA1`            | Output       | Existing LED                                         | Status indication                                       |
-| LED2              | `PA2`            | Output       | Existing LED                                         | Status indication                                       |
-| SWDIO             | `PA13`           | Debug        | SWD                                                  | Reserved, do not reuse                                  |
-| SWCLK             | `PA14`           | Debug        | SWD                                                  | Reserved, do not reuse                                  |
+| Function          | Pin              | Direction    | Electrical Interface                                 | Active Level / Notes                                  |
+| ----------------- | ---------------- | ------------ | ---------------------------------------------------- | ----------------------------------------------------- |
+| OLED-I2C SCL      | `PB8`            | Output/input | Software I2C, open-drain style                       | OLED only; 4.7k pull-up to 3.3V                       |
+| OLED-I2C SDA      | `PB9`            | Output/input | Software I2C, open-drain style                       | OLED only; 4.7k pull-up to 3.3V                       |
+| I2C-A SCL         | `PA6`            | Output/input | Software I2C, open-drain style                       | `P_air`; adjacent to `PA7`; 4.7k pull-up to 3.3V      |
+| I2C-A SDA         | `PA7`            | Output/input | Software I2C, open-drain style                       | `P_air`; adjacent to `PA6`; 4.7k pull-up to 3.3V      |
+| I2C-B SCL         | `PB6`            | Output/input | Software I2C, open-drain style                       | `P_basket`; 4.7k pull-up to 3.3V                      |
+| I2C-B SDA         | `PB7`            | Output/input | Software I2C, open-drain style                       | `P_basket`; 4.7k pull-up to 3.3V                      |
+| I2C-C SCL         | `PA8`            | Output/input | Software I2C, open-drain style                       | `P_tank`; adjacent to `PA9`; 4.7k pull-up to 3.3V     |
+| I2C-C SDA         | `PA9`            | Output/input | Software I2C, open-drain style                       | `P_tank`; adjacent to `PA8`; 4.7k pull-up to 3.3V     |
+| UM244 STEP        | `PA3 / TIM2_CH4` | Output       | 3.3V GPIO drives single-channel NPN optocoupler      | Sends active-low pulse to UM244 `PU-`; adjacent group |
+| UM244 DIR         | `PA4`            | Output       | 3.3V GPIO drives single-channel NPN optocoupler      | Direction must be verified during bring-up            |
+| UM244 MF/release  | `PA5`            | Output       | 3.3V GPIO drives single-channel NPN optocoupler      | Default high; do not release in automatic mode        |
+| Left upper limit  | `PB12`           | Input        | Optocoupler output, pull-up                          | Low = triggered                                       |
+| Left lower limit  | `PB13`           | Input        | Optocoupler output, pull-up                          | Low = triggered                                       |
+| Right upper limit | `PB14`           | Input        | Optocoupler output, pull-up                          | Low = triggered                                       |
+| Right lower limit | `PB15`           | Input        | Optocoupler output, pull-up                          | Low = triggered                                       |
+| Key 1             | `PB1`            | Input        | Existing key                                         | Menu/decrease/manual down                             |
+| Key 2             | `PB11`           | Input        | Existing key                                         | Menu/increase/manual up                               |
+| Pause/confirm key | `PB10`           | Input        | New key                                              | Pause/confirm/alarm silence/maintenance entry         |
+| Page/menu key     | `PB0`            | Input        | New key                                              | Page switch/cancel                                    |
+| Active buzzer     | `PA0`            | Output       | Direct to low-level-trigger active buzzer module I/O | High = off, low = on                                  |
+| LED1              | `PA1`            | Output       | Existing LED                                         | Status indication                                     |
+| LED2              | `PA2`            | Output       | Existing LED                                         | Status indication                                     |
+| SWDIO             | `PA13`           | Debug        | SWD                                                  | Reserved, do not reuse                                |
+| SWCLK             | `PA14`           | Debug        | SWD                                                  | Reserved, do not reuse                                |
 
 ## I2C Devices
 
@@ -48,14 +48,14 @@ Do not place two WF5805F modules on the same I2C bus. The purchased 4-pin module
 
 ## UM244 Signal Wiring
 
-| UM244 Terminal | Wiring                                                        |
-| -------------- | ------------------------------------------------------------- |
-| `PU+`          | +5V from the 24V-to-5V buck module                            |
-| `DR+`          | +5V from the 24V-to-5V buck module                            |
-| `MF+`          | +5V from the 24V-to-5V buck module                            |
-| `PU-`          | STEP optocoupler `OUT`, controlled by STM32 `PA3`              |
-| `DR-`          | DIR optocoupler `OUT`, controlled by STM32 `PA4`               |
-| `MF-`          | MF optocoupler `OUT`, controlled by STM32 `PA5`                |
+| UM244 Terminal | Wiring                                            |
+| -------------- | ------------------------------------------------- |
+| `PU+`          | +5V from the 24V-to-5V buck module                |
+| `DR+`          | +5V from the 24V-to-5V buck module                |
+| `MF+`          | +5V from the 24V-to-5V buck module                |
+| `PU-`          | STEP optocoupler `OUT`, controlled by STM32 `PA3` |
+| `DR-`          | DIR optocoupler `OUT`, controlled by STM32 `PA4`  |
+| `MF-`          | MF optocoupler `OUT`, controlled by STM32 `PA5`   |
 
 The same 24V-to-5V buck output also powers the STM32 minimum system board through its `5V` pin. UM244 input high level requires more than 4V, so STM32 3.3V GPIO must not directly drive `PU/DR/MF` input terminals.
 
