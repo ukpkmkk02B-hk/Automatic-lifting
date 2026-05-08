@@ -26,7 +26,12 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - I2C-C: `PA8/PA9` for `P_tank`.
 - Motor driver: one UM244 driver.
 - Motors: two 42HSC1409-250NE2 captive linear stepper motors connected in parallel to the same driver output.
-- Limits: four 24V NPN limit switches, optocoupler-isolated into STM32.
+- UM244 `PU-/DR-/MF-` low-side signal conversion uses three independent single-channel NPN optocoupler modules from `Materials/npn型光耦隔离器-用于给步进电机驱动器的拉低信号转换.jpg`.
+- The optocoupler input side is powered from STM32 3.3V; the optocoupler output side is powered from the 5V signal rail and pulls UM244 `PU-/DR-/MF-` low.
+- During bring-up, each active UM244 minus input must measure `0-0.5V`; otherwise the optocoupler module must be replaced or followed by a transistor/MOSFET stage.
+- Limits: four 24V NPN limit switches, isolated into STM32 through 24V NPN input optocoupler modules.
+- The module shown in `Materials/npn型光耦隔离器-用于限位器信号输入.jpg` is acceptable for limit input when using the 24V-input variant shown in `Materials/npn型光耦隔离器-用于限位器信号输入（详细版）.jpg`; `Materials/光耦隔离器原理图.jpg` shows an MCU-side pull-up, so its MCU-side `VCC` and any pull-up must use 3.3V.
+- Each limit switch must use an independent optocoupler input channel and an independent STM32 GPIO.
 - Alarm: low-level-trigger active buzzer module on `PA0`.
 - Power: 220V AC to 24V 5A supply; 24V to 5V buck powers the STM32 minimum system board `5V` pin and UM244 `PU+/DR+/MF+` signal common positive terminals.
 - 3.3V peripherals: OLED, WF5805F modules, and buzzer module must be powered from the minimum system board 3.3V rail or a dedicated 3.3V regulator, not from 5V.
@@ -106,6 +111,12 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - OLED pages.
 - Key scanning and menu logic.
 - Flash parameter storage with A/B backup.
+
+## Reference Code Inputs
+
+- Read `Reference/WF5805_2BAR官方驱动包` before implementing the WF5805F driver.
+- Read `Reference/步进电机驱动示例` before implementing UM244 STEP/DIR/MF timing and timer setup.
+- Reference code may guide Standard Peripheral Library calls and device command formats, but blocking `Delay` loops and busy waits must not be copied into new firmware modules.
 - Error manager with fixed error codes.
 - Main application state machine.
 

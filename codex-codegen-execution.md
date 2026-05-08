@@ -13,11 +13,27 @@
 - `Materials/UM244 使用手册V1.1.pdf`
 - `Materials/42HSC1409-250NE2.pdf`
 - `Materials/WF5805F 2Bar Datasheet V1.0.pdf`
+- `Materials/STM32F103C8T6核心板原理图.pdf`
+- `Materials/STM32F103x8B_DS_CH_V10.pdf`
+- `Materials/STM32F10xxx参考手册（英文）.pdf`
+- `Materials/STM32F103xx固件函数库用户手册.pdf`
+- `Materials/ST-LINK+V2使用说明.pdf`
+- `Materials/STM32F103C8T6引脚定义.xlsx`
 - `Materials/最小系统板.png`
 - `Materials/限位器接线.png`
+- `Materials/npn型光耦隔离器-用于限位器信号输入.jpg`
+- `Materials/npn型光耦隔离器-用于限位器信号输入（详细版）.jpg`
+- `Materials/光耦隔离器原理图.jpg`
+- `Materials/npn型光耦隔离器-用于给步进电机驱动器的拉低信号转换.jpg`
+- `Materials/0.96寸4针B版本结构图.pdf`
+- `Materials/0.96寸OLED规格书.pdf`
 - `Materials/4-1 OLED显示屏.jpg`
+- `Materials/中景园电子0.96OLED显示屏IIC接口原理图.pdf.pdf`
+- `Materials/中景园电子0.96OLED显示屏_驱动芯片手册.pdf`
 - `Materials/3-有源蜂鸣器/有源蜂鸣器模块原理图.png`
+- `Materials/3-有源蜂鸣器/有源蜂鸣器模块实物图.png`
 - `Reference/WF5805_2BAR官方驱动包`
+- `Reference/步进电机驱动示例`
 
 ## 项目结构总览
 
@@ -35,11 +51,18 @@
 | `codex-codegen-execution.md`            | 分阶段代码生成执行手册                                | 作为新对话执行入口                              |
 | `Auto-lift-wiring-design.md`            | 主规格文档                                            | 权威系统行为和硬件方案                          |
 | `Materials/`                            | 外设资料、PDF、接线图                                 | 写驱动前必须查阅                                |
-| `Reference/`                            | 参考代码包                                            | 只作参考，不直接整包复制                        |
+| `Reference/`                            | 传感器、OLED、按键、蜂鸣器、步进/定时器参考代码包     | 只作参考，不直接整包复制                        |
 | `Hardware/`                             | 现有 OLED、Key、LED、水相关代码；后续主要新增模块位置 | 允许新增 `.c/.h`，谨慎修改已有文件              |
 | `user/main.c`                           | 固件主入口                                            | 允许最小化修改，用于初始化和调用状态机          |
 | `user/stm32f10x_it.c/.h`                | 中断入口                                              | 原则上不放复杂业务逻辑                          |
 | `system/`                               | 延时等基础系统代码                                    | 不修改                                          |
+
+参考代码使用规则：
+
+- `Reference/WF5805_2BAR官方驱动包` 必须用于确认 WF5805F I2C 地址、命令、返回字节和压力/温度换算公式。
+- `Reference/步进电机驱动示例` 可参考标准外设库 GPIO、TIM、PWM、OLED、Key、Buzzer 的初始化写法。
+- 示例代码中使用 `Delay_ms`、`Delay_us`、忙等按键释放、循环翻转 GPIO 发脉冲的实现只能作为反例或临时理解材料，不能直接复制到本项目新模块。
+- 示例工程缺少完整 Keil 环境文件时，不要求编译示例；只读取 `Hardware/` 和 `User/main.c` 中与当前阶段相关的实现。
 | `Library/`                              | STM32 标准外设库                                      | 不修改                                          |
 | `start/`                                | 启动文件和 CMSIS 基础文件                             | 不修改                                          |
 | `Objects/`、`Listings/`、`DebugConfig/` | Keil 生成物和调试配置                                 | 不修改、不提交                                  |
@@ -93,11 +116,27 @@ app_state   -> stepper_um244/buzzer/OLED/param_store
 - Materials/UM244 使用手册V1.1.pdf
 - Materials/42HSC1409-250NE2.pdf
 - Materials/WF5805F 2Bar Datasheet V1.0.pdf
+- Materials/STM32F103C8T6核心板原理图.pdf
+- Materials/STM32F103x8B_DS_CH_V10.pdf
+- Materials/STM32F10xxx参考手册（英文）.pdf
+- Materials/STM32F103xx固件函数库用户手册.pdf
+- Materials/ST-LINK+V2使用说明.pdf
+- Materials/STM32F103C8T6引脚定义.xlsx
 - Materials/最小系统板.png
 - Materials/限位器接线.png
+- Materials/npn型光耦隔离器-用于限位器信号输入.jpg
+- Materials/npn型光耦隔离器-用于限位器信号输入（详细版）.jpg
+- Materials/光耦隔离器原理图.jpg
+- Materials/npn型光耦隔离器-用于给步进电机驱动器的拉低信号转换.jpg
+- Materials/0.96寸4针B版本结构图.pdf
+- Materials/0.96寸OLED规格书.pdf
 - Materials/4-1 OLED显示屏.jpg
+- Materials/中景园电子0.96OLED显示屏IIC接口原理图.pdf.pdf
+- Materials/中景园电子0.96OLED显示屏_驱动芯片手册.pdf
 - Materials/3-有源蜂鸣器/有源蜂鸣器模块原理图.png
+- Materials/3-有源蜂鸣器/有源蜂鸣器模块实物图.png
 - Reference/WF5805_2BAR官方驱动包
+- Reference/步进电机驱动示例
 
 阅读后请先总结：
 1. 当前硬件连接假设，包括 24V、5V、3.3V 电源路径和共地关系
@@ -213,6 +252,7 @@ I2C 容错规则：
 - `system/Delay.c/.h`
 - `project1.uvprojx`
 - `Reference/WF5805_2BAR官方驱动包`
+- `Reference/步进电机驱动示例`
 
 输出：
 
@@ -248,6 +288,8 @@ I2C 容错规则：
 
 - `PA0` 蜂鸣器，低电平响，高电平关闭，初始化默认关闭。
 - `PB12/PB13/PB14/PB15` 四个限位输入，低有效。
+- 限位硬件必须按 24V NPN 输入型光耦隔离模块处理；`Materials/npn型光耦隔离器-用于限位器信号输入.jpg` 可作为限位输入模块，但必须使用 `Materials/npn型光耦隔离器-用于限位器信号输入（详细版）.jpg` 中的 24V 输入版本，输出侧 `VCC` 和板载/外接上拉使用 3.3V。
+- 四个限位器必须对应四个独立光耦输入通道和四个独立 STM32 GPIO。
 - 上限位、下限位、左右一致性查询接口，含限位输入滤波。
 - `PB1/PB11/PB10/PB0` 按键扫描。
 - 短按、长按、3 秒维护长按事件。
@@ -293,6 +335,7 @@ I2C 容错规则：
 - 阅读 `WF5805F 2Bar Datasheet V1.0.pdf` 和 `Reference/WF5805_2BAR官方驱动包`。
 - 摘录 I2C 地址、读写命令、返回字节格式、状态位、压力换算公式。
 - 明确官方驱动 `WFSensorIICDevice 0XDA` 是 WF5805F 的 8-bit 写地址，对应固件内部 7-bit 地址 `0x6D`。
+- 参考驱动中 `WFSensor_indicateGroupConvert()` 写 `0x30 <- 0x0A`，`WFSensor_WaitFinish()` 读 `0x02`，`WFSensor_getTPData()` 从 `0x06` 连续读 5 字节；最终实现仍要按 PDF 核对并加超时。
 - 如果 PDF 信息不完整，停止并向用户索要资料，不允许猜测。
 
 必须实现：
@@ -369,6 +412,12 @@ I2C 容错规则：
 - `PA3 / TIM2_CH4` 输出 STEP。
 - `PA4` 输出 DIR。
 - `PA5` 输出 MF/电机释放。
+- UM244 `PU-/DR-/MF-` 由三块单路 NPN 光耦模块下拉，参考 `Materials/npn型光耦隔离器-用于给步进电机驱动器的拉低信号转换.jpg`。
+- 模块会反相：STM32 GPIO 输出低电平时，UM244 对应负端被拉低；STEP 空闲电平为 STM32 高电平，输出一步时拉低再恢复高电平。
+- `PA5` 对应 `MF-`，低电平会释放电机；固件初始化后必须默认输出高电平，自动模式禁止释放。
+- 硬件调试必须实测 `PU-/DR-/MF-` 有效低电平为 `0-0.5V`；若达不到，不能继续按该模块直接驱动方案生成固件假设。
+- 可参考 `Reference/步进电机驱动示例/STM32驱动步进电机--IO口翻转/Hardware/Motor.c` 的 `PA3/PA4/PA5` GPIO 分工，但不得复制其中 `Delay_us` 循环翻转 STEP 的阻塞实现。
+- 可参考 `Reference/步进电机驱动示例/驱动编码器电机/Hardware/Timer.c` 的 TIM/NVIC 标准外设库初始化写法，但本项目 STEP 中断必须加入有限脉冲计数和限位急停直读。
 - 800 pulse/mm 换算。
 - 自动打盹脉冲频率默认 800Hz，可降级为 400Hz。
 - 自动打盹 `1-16 pulse` 不做加减速。

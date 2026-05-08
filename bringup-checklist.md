@@ -49,6 +49,11 @@ Pass condition: no repeated I2C failures and depth direction is correct.
 ## 4. Limit Switches
 
 - With 24V limit switch power on, manually trigger each limit switch one at a time.
+- Confirm the isolation module is a 24V NPN input optocoupler module: sensor brown/blue/black stay on the 24V input side, and STM32 GPIO sees only the 3.3V output side.
+- The module shown in `Materials/npn型光耦隔离器-用于限位器信号输入.jpg` can be used here only as the 24V-input variant shown in `Materials/npn型光耦隔离器-用于限位器信号输入（详细版）.jpg`.
+- Confirm the four limit switches use four independent optocoupler input channels and four independent STM32 GPIO outputs.
+- Confirm the module output side `VCC` is connected to 3.3V, not 5V or 24V.
+- Before connecting STM32, power the module output side from 3.3V and verify `OUT` is never above 3.3V.
 - Confirm OLED shows:
   - left upper
   - left lower
@@ -66,6 +71,11 @@ Pass condition: every limit input matches the physical switch and mismatch detec
 - Confirm STEP/DIR/MF are wired from `PA3/PA4/PA5` respectively.
 - Confirm UM244 `PU+`, `DR+`, and `MF+` are tied to +5V.
 - Confirm STM32 GPIO is not directly connected to UM244 input plus terminals.
+- Confirm three independent single-channel optocoupler modules are used for STEP, DIR, and MF.
+- Confirm each module MCU-side `VCC` is 3.3V and each module output-side signal power is +5V.
+- Confirm each module output-side `OUT` goes to the matching UM244 minus terminal: STEP to `PU-`, DIR to `DR-`, MF to `MF-`.
+- Confirm STM32 low level pulls the matching UM244 minus terminal low, and STM32 high level releases it high.
+- With UM244 connected, measure each active-low minus terminal and confirm the low level is `0-0.5V`.
 - Confirm `MF` default state does not release the motor.
 
 Pass condition: control signals are electrically correct before motor power tests.

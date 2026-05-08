@@ -16,9 +16,9 @@ The pin layout follows `Materials/最小系统板.png`: keep OLED on `PB8/PB9`, 
 | I2C-B SDA         | `PB7`            | Output/input | Software I2C, open-drain style                       | `P_basket`; 4.7k pull-up to 3.3V                        |
 | I2C-C SCL         | `PA8`            | Output/input | Software I2C, open-drain style                       | `P_tank`; adjacent to `PA9`; 4.7k pull-up to 3.3V        |
 | I2C-C SDA         | `PA9`            | Output/input | Software I2C, open-drain style                       | `P_tank`; adjacent to `PA8`; 4.7k pull-up to 3.3V        |
-| UM244 STEP        | `PA3 / TIM2_CH4` | Output       | 3.3V GPIO drives NPN/level-shift input               | Sends pulse to UM244 `PU-`; adjacent STEP/DIR/MF group  |
-| UM244 DIR         | `PA4`            | Output       | 3.3V GPIO drives NPN/level-shift input               | Direction must be verified during bring-up              |
-| UM244 MF/release  | `PA5`            | Output       | 3.3V GPIO drives NPN/level-shift input               | Motor release control; do not release in automatic mode |
+| UM244 STEP        | `PA3 / TIM2_CH4` | Output       | 3.3V GPIO drives single-channel NPN optocoupler      | Sends active-low pulse to UM244 `PU-`; adjacent group   |
+| UM244 DIR         | `PA4`            | Output       | 3.3V GPIO drives single-channel NPN optocoupler      | Direction must be verified during bring-up              |
+| UM244 MF/release  | `PA5`            | Output       | 3.3V GPIO drives single-channel NPN optocoupler      | Default high; do not release in automatic mode          |
 | Left upper limit  | `PB12`           | Input        | Optocoupler output, pull-up                          | Low = triggered                                         |
 | Left lower limit  | `PB13`           | Input        | Optocoupler output, pull-up                          | Low = triggered                                         |
 | Right upper limit | `PB14`           | Input        | Optocoupler output, pull-up                          | Low = triggered                                         |
@@ -53,15 +53,23 @@ Do not place two WF5805F modules on the same I2C bus. The purchased 4-pin module
 | `PU+`          | +5V from the 24V-to-5V buck module                            |
 | `DR+`          | +5V from the 24V-to-5V buck module                            |
 | `MF+`          | +5V from the 24V-to-5V buck module                            |
-| `PU-`          | NPN collector or optocoupler output controlled by STM32 `PA3` |
-| `DR-`          | NPN collector or optocoupler output controlled by STM32 `PA4` |
-| `MF-`          | NPN collector or optocoupler output controlled by STM32 `PA5` |
+| `PU-`          | STEP optocoupler `OUT`, controlled by STM32 `PA3`              |
+| `DR-`          | DIR optocoupler `OUT`, controlled by STM32 `PA4`               |
+| `MF-`          | MF optocoupler `OUT`, controlled by STM32 `PA5`                |
 
 The same 24V-to-5V buck output also powers the STM32 minimum system board through its `5V` pin. UM244 input high level requires more than 4V, so STM32 3.3V GPIO must not directly drive `PU/DR/MF` input terminals.
 
+Use three independent modules from `Materials/npn型光耦隔离器-用于给步进电机驱动器的拉低信号转换.jpg`. On each module, MCU-side `VCC` goes to 3.3V and `IO` goes to the STM32 pin. Output-side signal power goes to +5V, output-side GND goes to 5V/STM32 GND, and `OUT` goes to the matching UM244 minus terminal. The module inverts the signal: STM32 low = UM244 minus pulled low.
+
+During bring-up, verify each active UM244 minus terminal measures `0-0.5V`. If not, do not use the optocoupler module directly for UM244 control.
+
 ## Limit Switch Logic
 
-The four limit switches are 24V NPN sensors. Brown = +24V, blue = 24V 0V, black = NPN output. The black wire enters the 24V side of an optocoupler input circuit.
+The four limit switches are 24V NPN sensors. Brown = +24V, blue = 24V 0V, black = NPN output. The black wire must enter the low-level signal/input-negative terminal of the 24V NPN input optocoupler module.
+
+The module shown in `Materials/npn型光耦隔离器-用于限位器信号输入.jpg` matches this use case because it is an NPN input optocoupler module for external signals entering an MCU. Use the 24V-input variant from `Materials/npn型光耦隔离器-用于限位器信号输入（详细版）.jpg`. `Materials/光耦隔离器原理图.jpg` shows a pull-up resistor on the MCU side, so connect the MCU-side `VCC` and any pull-up to 3.3V.
+
+Use one independent optocoupler channel per limit switch. A single-channel module requires four modules; a multi-channel module must expose four independent inputs and four independent `OUT-IO` outputs.
 
 | Physical State | STM32 GPIO Read |
 | -------------- | --------------- |

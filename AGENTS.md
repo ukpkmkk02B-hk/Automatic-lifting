@@ -16,12 +16,30 @@ Before writing or modifying code, read and follow:
 - `Materials/42HSC1409-250NE2.pdf`
 - `Materials/WF5805F 2Bar Datasheet V1.0.pdf`
 - `Reference/WF5805_2BAR官方驱动包`
+- `Reference/步进电机驱动示例`
+- `Materials/STM32F103C8T6核心板原理图.pdf`
+- `Materials/STM32F103x8B_DS_CH_V10.pdf`
+- `Materials/STM32F10xxx参考手册（英文）.pdf`
+- `Materials/STM32F103xx固件函数库用户手册.pdf`
+- `Materials/ST-LINK+V2使用说明.pdf`
+- `Materials/STM32F103C8T6引脚定义.xlsx`
 - `Materials/最小系统板.png`
 - `Materials/限位器接线.png`
+- `Materials/npn型光耦隔离器-用于限位器信号输入.jpg`
+- `Materials/npn型光耦隔离器-用于限位器信号输入（详细版）.jpg`
+- `Materials/光耦隔离器原理图.jpg`
+- `Materials/npn型光耦隔离器-用于给步进电机驱动器的拉低信号转换.jpg`
+- `Materials/0.96寸4针B版本结构图.pdf`
+- `Materials/0.96寸OLED规格书.pdf`
 - `Materials/4-1 OLED显示屏.jpg`
+- `Materials/中景园电子0.96OLED显示屏IIC接口原理图.pdf.pdf`
+- `Materials/中景园电子0.96OLED显示屏_驱动芯片手册.pdf`
 - `Materials/3-有源蜂鸣器/有源蜂鸣器模块原理图.png`
+- `Materials/3-有源蜂鸣器/有源蜂鸣器模块实物图.png`
 
 `skill.md` is the required coding-behavior guide for this project. Read it before code work and apply its rules on assumptions, simplicity, surgical changes, and verification.
+
+`Reference/` code is reference material only. Before generating firmware, inspect the relevant `hardware` and `main` files for Standard Peripheral Library usage, WF5805F command/data format, OLED routines, GPIO setup, key/buzzer examples, and stepper timing patterns. Do not copy blocking `Delay` loops, busy-wait key scans, or whole example modules directly into this project.
 
 The design document is authoritative for wiring, pin allocation, nap-mode motion, power recovery behavior, alarm behavior, and safety behavior.
 
