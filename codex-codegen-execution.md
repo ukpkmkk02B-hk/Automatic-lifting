@@ -247,7 +247,7 @@ I2C 容错规则：
 - 主规格文档
 - `user/main.c`
 - `Hardware/OLED.c/.h`
-- `Hardware/Key.c/.h`
+- `Reference/Key/Key.c/.h`
 - `Hardware/LED.c/.h`
 - `system/Delay.c/.h`
 - `project1.uvprojx`

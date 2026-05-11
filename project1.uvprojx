@@ -710,6 +710,26 @@
               <FileType>5</FileType>
               <FilePath>.\Hardware\key_scan.h</FilePath>
             </File>
+            <File>
+              <FileName>soft_i2c.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\soft_i2c.c</FilePath>
+            </File>
+            <File>
+              <FileName>soft_i2c.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\soft_i2c.h</FilePath>
+            </File>
+            <File>
+              <FileName>wf5805f.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\wf5805f.c</FilePath>
+            </File>
+            <File>
+              <FileName>wf5805f.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\wf5805f.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

@@ -4,6 +4,7 @@
 #include "limit.h"
 #include "key_scan.h"
 #include "LED.h"
+#include "wf5805f.h"
 
 static uint32_t g_app_ms;
 
@@ -22,32 +23,46 @@ static void App_TimebasePoll(void)
 	}
 }
 
-static void App_ShowLimitState(void)
+static void App_ShowSensorLine(uint8_t line, char label, WF5805F_Sensor_t sensor)
 {
-	OLED_ShowString(1, 1, "STAGE1 GPIO    ");
-	OLED_ShowString(2, 1, "LU");
-	OLED_ShowNum(2, 3, Limit_IsActive(LIMIT_LEFT_UPPER), 1);
-	OLED_ShowString(2, 5, "LD");
-	OLED_ShowNum(2, 7, Limit_IsActive(LIMIT_LEFT_LOWER), 1);
-	OLED_ShowString(2, 9, "RU");
-	OLED_ShowNum(2, 11, Limit_IsActive(LIMIT_RIGHT_UPPER), 1);
-	OLED_ShowString(2, 13, "RD");
-	OLED_ShowNum(2, 15, Limit_IsActive(LIMIT_RIGHT_LOWER), 1);
-	OLED_ShowString(3, 1, "U");
-	OLED_ShowNum(3, 2, Limit_IsAnyUpperActive(), 1);
-	OLED_ShowString(3, 4, "D");
-	OLED_ShowNum(3, 5, Limit_IsAnyLowerActive(), 1);
-	OLED_ShowString(3, 7, "M");
-	OLED_ShowNum(3, 8, Limit_IsSameDirectionMismatch(), 1);
-	OLED_ShowString(3, 10, "BZ");
-	OLED_ShowNum(3, 12, Buzzer_IsOn(), 1);
+	WF5805F_Reading_t reading;
+	WF5805F_Status_t status;
+	uint32_t pressure;
+
+	status = WF5805F_GetReading(sensor, &reading);
+	OLED_ShowChar(line, 1, label);
+
+	if ((status == WF5805F_OK) && (reading.valid != 0U))
+	{
+		OLED_ShowString(line, 2, " OK P");
+		if (reading.pressure_hpa_x100 < 0)
+		{
+			pressure = (uint32_t)(-reading.pressure_hpa_x100);
+			OLED_ShowChar(line, 7, '-');
+			OLED_ShowNum(line, 8, pressure % 100000UL, 5);
+			OLED_ShowString(line, 13, "    ");
+		}
+		else
+		{
+			pressure = (uint32_t)reading.pressure_hpa_x100;
+			OLED_ShowNum(line, 7, pressure % 1000000UL, 6);
+			OLED_ShowString(line, 13, "    ");
+		}
+	}
+	else
+	{
+		OLED_ShowString(line, 2, " ER F");
+		OLED_ShowNum(line, 7, WF5805F_GetFailureCount(sensor) % 10000U, 4);
+		OLED_ShowString(line, 11, "      ");
+	}
 }
 
-static void App_ShowKeyEvents(uint16_t events)
+static void App_ShowStage2State(void)
 {
-	OLED_ShowString(4, 1, "KEY EVT ");
-	OLED_ShowHexNum(4, 9, events, 4);
-	OLED_ShowString(4, 13, "   ");
+	OLED_ShowString(1, 1, "STAGE2 WF5805F  ");
+	App_ShowSensorLine(2, 'A', WF5805F_SENSOR_AIR);
+	App_ShowSensorLine(3, 'B', WF5805F_SENSOR_BASKET);
+	App_ShowSensorLine(4, 'C', WF5805F_SENSOR_TANK);
 }
 
 static void App_HandleKeyEvents(uint16_t events)
@@ -94,10 +109,10 @@ int main(void)
 	LED_Init();
 	Limit_Init();
 	KeyScan_Init();
+	WF5805F_InitAll();
 	OLED_Init();
 	OLED_Clear();
-	App_ShowLimitState();
-	App_ShowKeyEvents(0U);
+	App_ShowStage2State();
 	last_display_ms = 0U;
 	
 	while (1)
@@ -106,18 +121,18 @@ int main(void)
 		Limit_Update(g_app_ms);
 		KeyScan_Update(g_app_ms);
 		App_UpdateLeds(g_app_ms);
+		WF5805F_Update(g_app_ms);
 
 		key_events = KeyScan_GetEvents();
 		if (key_events != 0U)
 		{
 			App_HandleKeyEvents(key_events);
-			App_ShowKeyEvents(key_events);
 		}
 
-		if ((uint32_t)(g_app_ms - last_display_ms) >= 200U)
+		if ((uint32_t)(g_app_ms - last_display_ms) >= 250U)
 		{
 			last_display_ms = g_app_ms;
-			App_ShowLimitState();
+			App_ShowStage2State();
 		}
 	}
 }
