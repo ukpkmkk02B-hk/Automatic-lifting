@@ -56,8 +56,8 @@ STM32 最小系统板 3.3V
 | -------------- | ---------------- | ------------------------- | --------------------------------- |
 | OLED SCL       | `PB8`            | OLED `SCL`                | 软件 I2C                          |
 | OLED SDA       | `PB9`            | OLED `SDA`                | 软件 I2C                          |
-| `P_air` SCL    | `PA6`            | 空气参考 WF5805F `SCL`    | 软件 I2C                          |
-| `P_air` SDA    | `PA7`            | 空气参考 WF5805F `SDA`    | 软件 I2C                          |
+| `P_air` SCL    | `PA1`            | 空气参考 WF5805F `SCL`    | 软件 I2C                          |
+| `P_air` SDA    | `PA2`            | 空气参考 WF5805F `SDA`    | 软件 I2C                          |
 | `P_basket` SCL | `PB6`            | 框篮底部 WF5805F `SCL`    | 软件 I2C                          |
 | `P_basket` SDA | `PB7`            | 框篮底部 WF5805F `SDA`    | 软件 I2C                          |
 | `P_tank` SCL   | `PA8`            | 鱼缸底部 WF5805F `SCL`    | 软件 I2C                          |
@@ -74,10 +74,12 @@ STM32 最小系统板 3.3V
 | 按键 2         | `PB11`           | 按键到 GND                | 低电平按下                        |
 | 暂停/确认键    | `PB10`           | 按键到 GND                | 低电平按下                        |
 | 页面/取消键    | `PB0`            | 按键到 GND                | 低电平按下                        |
-| LED1           | `PA1`            | 现有 LED                  | 板载/现有连接                     |
-| LED2           | `PA2`            | 现有 LED                  | 板载/现有连接                     |
+| LED1           | `PA6`            | LED 负极/阴极             | 正极经限流电阻接 3.3V，低电平亮  |
+| LED2           | `PA7`            | LED 负极/阴极             | 正极经限流电阻接 3.3V，低电平亮  |
 | SWDIO          | `PA13`           | ST-LINK `SWDIO`           | 调试保留                          |
 | SWCLK          | `PA14`           | ST-LINK `SWCLK`           | 调试保留                          |
+
+LED1/LED2 的接法为：3.3V -> 限流电阻 -> LED 正极/阳极，LED 负极/阴极 -> STM32 GPIO。`PA6/PA7` 输出高电平时 LED 熄灭，输出低电平时 LED 点亮。
 
 ## 3. OLED 与三颗 WF5805F
 
@@ -95,8 +97,8 @@ STM32 GND ────────┬── OLED `GND`
 STM32 `PB8` ───────── OLED `SCL`
 STM32 `PB9` ───────── OLED `SDA`
 
-STM32 `PA6` ───────── P_air `SCL`
-STM32 `PA7` ───────── P_air `SDA`
+STM32 `PA1` ───────── P_air `SCL`
+STM32 `PA2` ───────── P_air `SDA`
 
 STM32 `PB6` ───────── P_basket `SCL`
 STM32 `PB7` ───────── P_basket `SDA`
@@ -108,7 +110,7 @@ STM32 `PA9` ───────── P_tank `SDA`
 | 设备       | 位置                 | I2C 总线  | 地址说明                               |
 | ---------- | -------------------- | --------- | -------------------------------------- |
 | OLED       | 控制盒/面板          | `PB8/PB9` | 7-bit `0x3C`，常见 8-bit 写地址 `0x78` |
-| `P_air`    | 控制盒内，暴露空气   | `PA6/PA7` | WF5805F 7-bit `0x6D`                   |
+| `P_air`    | 控制盒内，暴露空气   | `PA1/PA2` | WF5805F 7-bit `0x6D`                   |
 | `P_basket` | 框篮底部，随框篮移动 | `PB6/PB7` | WF5805F 7-bit `0x6D`                   |
 | `P_tank`   | 鱼缸底部固定位置     | `PA8/PA9` | WF5805F 7-bit `0x6D`                   |
 
@@ -262,7 +264,7 @@ ST-LINK `3.3V`  ── 仅作目标电压参考；若系统已由 5V 降压模�
 - 5V 没有直接进入 STM32 GPIO，也没有接到 OLED/WF5805F/蜂鸣器 `VCC`。
 - STM32 最小系统板只从 `5V` 引脚接收 5V，不把 5V 接入 `3.3V` 引脚。
 - OLED 独占 `PB8/PB9`，不与任何 WF5805F 共用 I2C。
-- 三颗 WF5805F 分别位于 `PA6/PA7`、`PB6/PB7`、`PA8/PA9`，同地址传感器没有挂在同一总线上。
+- 三颗 WF5805F 分别位于 `PA1/PA2`、`PB6/PB7`、`PA8/PA9`，同地址传感器没有挂在同一总线上。
 - UM244 `PU+/DR+/MF+` 均为 5V，`PU-/DR-/MF-` 由三块光耦分别下拉。
 - 四个限位器每个都有独立光耦通道，输出侧只上拉到 3.3V。
 - 两个电机按红/黄一相、绿/蓝一相并联到 UM244，禁止把红/绿或黄/蓝当作同一相。

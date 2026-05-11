@@ -3,15 +3,14 @@
 This file is the short pin reference for firmware generation. The authoritative behavior is in `Auto-lift-wiring-design.md`.
 
 The pin layout follows `Materials/最小系统板.png`: keep OLED on `PB8/PB9`, group each pressure-sensor I2C pair on adjacent pins, group UM244 STEP/DIR/MF on adjacent `PA3/PA4/PA5`, and keep the four limit inputs on adjacent `PB12-PB15`.
-
 ## STM32F103C8T6 Pins
 
 | Function          | Pin              | Direction    | Electrical Interface                                 | Active Level / Notes                                  |
 | ----------------- | ---------------- | ------------ | ---------------------------------------------------- | ----------------------------------------------------- |
 | OLED-I2C SCL      | `PB8`            | Output/input | Software I2C, open-drain style                       | OLED only; 4.7k pull-up to 3.3V                       |
 | OLED-I2C SDA      | `PB9`            | Output/input | Software I2C, open-drain style                       | OLED only; 4.7k pull-up to 3.3V                       |
-| I2C-A SCL         | `PA6`            | Output/input | Software I2C, open-drain style                       | `P_air`; adjacent to `PA7`; 4.7k pull-up to 3.3V      |
-| I2C-A SDA         | `PA7`            | Output/input | Software I2C, open-drain style                       | `P_air`; adjacent to `PA6`; 4.7k pull-up to 3.3V      |
+| I2C-A SCL         | `PA1`            | Output/input | Software I2C, open-drain style                       | `P_air`; adjacent to `PA2`; 4.7k pull-up to 3.3V      |
+| I2C-A SDA         | `PA2`            | Output/input | Software I2C, open-drain style                       | `P_air`; adjacent to `PA1`; 4.7k pull-up to 3.3V      |
 | I2C-B SCL         | `PB6`            | Output/input | Software I2C, open-drain style                       | `P_basket`; 4.7k pull-up to 3.3V                      |
 | I2C-B SDA         | `PB7`            | Output/input | Software I2C, open-drain style                       | `P_basket`; 4.7k pull-up to 3.3V                      |
 | I2C-C SCL         | `PA8`            | Output/input | Software I2C, open-drain style                       | `P_tank`; adjacent to `PA9`; 4.7k pull-up to 3.3V     |
@@ -28,8 +27,8 @@ The pin layout follows `Materials/最小系统板.png`: keep OLED on `PB8/PB9`, 
 | Pause/confirm key | `PB10`           | Input        | New key                                              | Pause/confirm/alarm silence/maintenance entry         |
 | Page/menu key     | `PB0`            | Input        | New key                                              | Page switch/cancel                                    |
 | Active buzzer     | `PA0`            | Output       | Direct to low-level-trigger active buzzer module I/O | High = off, low = on                                  |
-| LED1              | `PA1`            | Output       | Existing LED                                         | Status indication                                     |
-| LED2              | `PA2`            | Output       | Existing LED                                         | Status indication                                     |
+| LED1              | `PA6`            | Output       | Existing LED, anode through resistor to 3.3V         | Low = on, high = off; cathode to GPIO                 |
+| LED2              | `PA7`            | Output       | Existing LED, anode through resistor to 3.3V         | Low = on, high = off; cathode to GPIO                 |
 | SWDIO             | `PA13`           | Debug        | SWD                                                  | Reserved, do not reuse                                |
 | SWCLK             | `PA14`           | Debug        | SWD                                                  | Reserved, do not reuse                                |
 
@@ -38,7 +37,7 @@ The pin layout follows `Materials/最小系统板.png`: keep OLED on `PB8/PB9`, 
 | Bus      | Pins      | Device     | Address Selection          | 7-bit Address |
 | -------- | --------- | ---------- | -------------------------- | ------------- |
 | OLED-I2C | `PB8/PB9` | OLED       | Fixed                      | `0x3C`        |
-| I2C-A    | `PA6/PA7` | `P_air`    | 4-pin module fixed address | `0x6D`        |
+| I2C-A    | `PA1/PA2` | `P_air`    | 4-pin module fixed address | `0x6D`        |
 | I2C-B    | `PB6/PB7` | `P_basket` | 4-pin module fixed address | `0x6D`        |
 | I2C-C    | `PA8/PA9` | `P_tank`   | 4-pin module fixed address | `0x6D`        |
 

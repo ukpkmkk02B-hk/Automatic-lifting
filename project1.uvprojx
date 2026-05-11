@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>.\start;.\user;.\Library</IncludePath>
+              <IncludePath>.\start;.\user;.\Library;.\Hardware;.\system</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -644,6 +644,71 @@
               <FileName>misc.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Library\misc.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Hardware</GroupName>
+          <Files>
+            <File>
+              <FileName>OLED.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\OLED.c</FilePath>
+            </File>
+            <File>
+              <FileName>OLED.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\OLED.h</FilePath>
+            </File>
+            <File>
+              <FileName>OLED_Font.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\OLED_Font.h</FilePath>
+            </File>
+            <File>
+              <FileName>LED.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\LED.c</FilePath>
+            </File>
+            <File>
+              <FileName>LED.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\LED.h</FilePath>
+            </File>
+            <File>
+              <FileName>board_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\board_config.h</FilePath>
+            </File>
+            <File>
+              <FileName>buzzer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\buzzer.c</FilePath>
+            </File>
+            <File>
+              <FileName>buzzer.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\buzzer.h</FilePath>
+            </File>
+            <File>
+              <FileName>limit.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\limit.c</FilePath>
+            </File>
+            <File>
+              <FileName>limit.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\limit.h</FilePath>
+            </File>
+            <File>
+              <FileName>key_scan.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\key_scan.c</FilePath>
+            </File>
+            <File>
+              <FileName>key_scan.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\key_scan.h</FilePath>
             </File>
           </Files>
         </Group>

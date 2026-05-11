@@ -21,7 +21,7 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - WF5805F address: fixed, official reference driver uses 8-bit write address `0xDA`, corresponding to 7-bit address `0x6D`.
 - Because all three WF5805F modules have the same address, each sensor must be isolated on its own software I2C bus. Do not place two WF5805F modules on the same I2C bus.
 - OLED-I2C: `PB8/PB9` for OLED only.
-- I2C-A: `PA6/PA7` for `P_air`.
+- I2C-A: `PA1/PA2` for `P_air`.
 - I2C-B: `PB6/PB7` for `P_basket`.
 - I2C-C: `PA8/PA9` for `P_tank`.
 - Motor driver: one UM244 driver.
@@ -33,6 +33,7 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - The module shown in `Materials/npn型光耦隔离器-用于限位器信号输入.jpg` is acceptable for limit input when using the 24V-input variant shown in `Materials/npn型光耦隔离器-用于限位器信号输入（详细版）.jpg`; `Materials/光耦隔离器原理图.jpg` shows an MCU-side pull-up, so its MCU-side `VCC` and any pull-up must use 3.3V.
 - Each limit switch must use an independent optocoupler input channel and an independent STM32 GPIO.
 - Alarm: low-level-trigger active buzzer module on `PA0`.
+- Status LEDs: LED1 on `PA6`, LED2 on `PA7`; LED anode through a current-limiting resistor to 3.3V, cathode to GPIO, low GPIO level turns LED on and high level turns LED off.
 - Power: 220V AC to 24V 5A supply; 24V to 5V buck powers the STM32 minimum system board `5V` pin and UM244 `PU+/DR+/MF+` signal common positive terminals.
 - 3.3V peripherals: OLED, WF5805F modules, and buzzer module must be powered from the minimum system board 3.3V rail or a dedicated 3.3V regulator, not from 5V.
 - Grounding: 24V supply negative, 5V buck GND, STM32 GND, and UM244 signal-side reference GND must have a defined common reference. 24V limit switch outputs still enter STM32 only through optocoupler isolation.

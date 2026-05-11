@@ -29,6 +29,7 @@ Pass condition: all supply voltages are correct; only the minimum system board `
 - Confirm buzzer short-beeps once at startup, then stays off.
 - Press `PB1`, `PB11`, `PB10`, and `PB0`; confirm OLED shows the expected key events.
 - Confirm `PA0` high turns buzzer off and `PA0` low turns buzzer on.
+- Confirm LED1/LED2 anodes connect to 3.3V through current-limiting resistors, cathodes connect to `PA6/PA7`, and low GPIO level turns the LEDs on.
 
 Pass condition: user interface works without motor power.
 
@@ -36,7 +37,7 @@ Pass condition: user interface works without motor power.
 
 - Confirm all three sensors respond on I2C.
 - Confirm OLED is alone on OLED-I2C `PB8/PB9`.
-- Confirm I2C-A `PA6/PA7` has `P_air`.
+- Confirm I2C-A `PA1/PA2` has `P_air`.
 - Confirm I2C-B `PB6/PB7` has `P_basket`.
 - Confirm I2C-C `PA8/PA9` has `P_tank`.
 - Confirm no I2C bus has more than one WF5805F module, and OLED does not share a bus with any WF5805F module.
