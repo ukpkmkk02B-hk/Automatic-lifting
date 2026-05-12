@@ -765,6 +765,26 @@
               <FileType>5</FileType>
               <FilePath>.\Hardware\stepper_um244.h</FilePath>
             </File>
+            <File>
+              <FileName>position_tracker.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\position_tracker.c</FilePath>
+            </File>
+            <File>
+              <FileName>position_tracker.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\position_tracker.h</FilePath>
+            </File>
+            <File>
+              <FileName>homing.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\homing.c</FilePath>
+            </File>
+            <File>
+              <FileName>homing.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\homing.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

@@ -9,14 +9,24 @@
 #define STEPPER_TIMER_TICK_HZ            1000000UL
 #define STEPPER_MIN_FREQ_HZ              1U
 
+typedef enum
+{
+	STEPPER_RAW_LIMIT_OK = 0,
+	STEPPER_RAW_LIMIT_EXPECTED,
+	STEPPER_RAW_LIMIT_FAULT,
+	STEPPER_RAW_LIMIT_MISMATCH
+} StepperUM244_RawLimitResult_t;
+
 static volatile StepperUM244_State_t s_state;
 static volatile StepperUM244_Direction_t s_direction;
 static volatile uint16_t s_target_pulses;
 static volatile uint16_t s_completed_pulses;
 static volatile uint16_t s_frequency_hz;
 static volatile uint8_t s_step_active;
+static volatile uint8_t s_expect_limit_stop;
 static volatile uint8_t s_motor_released;
 static volatile uint8_t s_initialized;
+static volatile StepperUM244_StopReason_t s_stop_reason;
 static uint32_t s_dir_ready_ms;
 static uint32_t s_hold_deadline_ms;
 
@@ -93,7 +103,7 @@ static uint8_t StepperUM244_CheckFilteredLimit(StepperUM244_Direction_t directio
 	return 0U;
 }
 
-static uint8_t StepperUM244_CheckRawLimitInIrq(void)
+static StepperUM244_RawLimitResult_t StepperUM244_CheckRawLimitInIrq(void)
 {
 	uint8_t left_upper;
 	uint8_t right_upper;
@@ -108,27 +118,40 @@ static uint8_t StepperUM244_CheckRawLimitInIrq(void)
 	if ((left_upper != right_upper) || (left_lower != right_lower))
 	{
 		ErrorManager_Set(ERROR_CODE_E_LIMIT_MISMATCH);
-		return 1U;
+		s_stop_reason = STEPPER_UM244_STOP_MISMATCH_FAULT;
+		return STEPPER_RAW_LIMIT_MISMATCH;
 	}
 
 	if (s_direction == STEPPER_UM244_DIRECTION_UP)
 	{
 		if ((left_upper != 0U) || (right_upper != 0U))
 		{
+			if (s_expect_limit_stop != 0U)
+			{
+				s_stop_reason = STEPPER_UM244_STOP_EXPECTED_LIMIT;
+				return STEPPER_RAW_LIMIT_EXPECTED;
+			}
 			ErrorManager_Set(ERROR_CODE_E_UPPER_LIMIT);
-			return 1U;
+			s_stop_reason = STEPPER_UM244_STOP_LIMIT_FAULT;
+			return STEPPER_RAW_LIMIT_FAULT;
 		}
 	}
 	else
 	{
 		if ((left_lower != 0U) || (right_lower != 0U))
 		{
+			if (s_expect_limit_stop != 0U)
+			{
+				s_stop_reason = STEPPER_UM244_STOP_EXPECTED_LIMIT;
+				return STEPPER_RAW_LIMIT_EXPECTED;
+			}
 			ErrorManager_Set(ERROR_CODE_E_LOWER_LIMIT);
-			return 1U;
+			s_stop_reason = STEPPER_UM244_STOP_LIMIT_FAULT;
+			return STEPPER_RAW_LIMIT_FAULT;
 		}
 	}
 
-	return 0U;
+	return STEPPER_RAW_LIMIT_OK;
 }
 
 static void StepperUM244_ConfigureTimer(uint16_t frequency_hz)
@@ -208,7 +231,9 @@ void StepperUM244_Init(void)
 	s_completed_pulses = 0U;
 	s_frequency_hz = BOARD_STEPPER_AUTO_FREQ_HZ;
 	s_step_active = 0U;
+	s_expect_limit_stop = 0U;
 	s_motor_released = 0U;
+	s_stop_reason = STEPPER_UM244_STOP_NONE;
 	s_dir_ready_ms = 0U;
 	s_hold_deadline_ms = 0U;
 	s_initialized = 1U;
@@ -247,10 +272,11 @@ void StepperUM244_Poll(uint32_t now_ms)
 	}
 }
 
-StepperUM244_Status_t StepperUM244_StartPulses(StepperUM244_Direction_t direction,
-                                               uint16_t pulses,
-                                               uint16_t frequency_hz,
-                                               uint32_t now_ms)
+static StepperUM244_Status_t StepperUM244_StartPulsesInternal(StepperUM244_Direction_t direction,
+                                                              uint16_t pulses,
+                                                              uint16_t frequency_hz,
+                                                              uint32_t now_ms,
+                                                              uint8_t expect_limit_stop)
 {
 	if ((s_initialized == 0U) ||
 	    (pulses == 0U) ||
@@ -286,6 +312,8 @@ StepperUM244_Status_t StepperUM244_StartPulses(StepperUM244_Direction_t directio
 	s_completed_pulses = 0U;
 	s_frequency_hz = frequency_hz;
 	s_step_active = 0U;
+	s_expect_limit_stop = expect_limit_stop;
+	s_stop_reason = STEPPER_UM244_STOP_NONE;
 	s_hold_deadline_ms = 0U;
 
 	StepperUM244_WriteStep(BOARD_UM244_STEP_IDLE_LEVEL);
@@ -297,6 +325,18 @@ StepperUM244_Status_t StepperUM244_StartPulses(StepperUM244_Direction_t directio
 	s_state = STEPPER_UM244_STATE_DIR_WAIT;
 
 	return STEPPER_UM244_STATUS_OK;
+}
+
+StepperUM244_Status_t StepperUM244_StartPulses(StepperUM244_Direction_t direction,
+                                               uint16_t pulses,
+                                               uint16_t frequency_hz,
+                                               uint32_t now_ms)
+{
+	return StepperUM244_StartPulsesInternal(direction,
+	                                       pulses,
+	                                       frequency_hz,
+	                                       now_ms,
+	                                       0U);
 }
 
 StepperUM244_Status_t StepperUM244_StartNapMove(StepperUM244_Direction_t direction,
@@ -314,12 +354,26 @@ StepperUM244_Status_t StepperUM244_StartNapMove(StepperUM244_Direction_t directi
 	                               now_ms);
 }
 
+StepperUM244_Status_t StepperUM244_StartUntilLimit(StepperUM244_Direction_t direction,
+                                                   uint16_t max_pulses,
+                                                   uint16_t frequency_hz,
+                                                   uint32_t now_ms)
+{
+	return StepperUM244_StartPulsesInternal(direction,
+	                                       max_pulses,
+	                                       frequency_hz,
+	                                       now_ms,
+	                                       1U);
+}
+
 void StepperUM244_Stop(void)
 {
 	StepperUM244_StopTimer();
 	s_target_pulses = 0U;
 	s_state = STEPPER_UM244_STATE_IDLE;
 	s_hold_deadline_ms = 0U;
+	s_expect_limit_stop = 0U;
+	s_stop_reason = STEPPER_UM244_STOP_REQUESTED;
 }
 
 void StepperUM244_ClearFault(void)
@@ -328,6 +382,7 @@ void StepperUM244_ClearFault(void)
 	{
 		StepperUM244_StopTimer();
 		s_state = STEPPER_UM244_STATE_IDLE;
+		s_stop_reason = STEPPER_UM244_STOP_NONE;
 	}
 }
 
@@ -366,8 +421,15 @@ uint16_t StepperUM244_GetCompletedPulses(void)
 	return s_completed_pulses;
 }
 
+StepperUM244_StopReason_t StepperUM244_GetStopReason(void)
+{
+	return s_stop_reason;
+}
+
 void StepperUM244_TIM2_IRQHandler(void)
 {
+	StepperUM244_RawLimitResult_t limit_result;
+
 	if (TIM_GetITStatus(STEPPER_TIMER, TIM_IT_Update) == RESET)
 	{
 		return;
@@ -381,9 +443,18 @@ void StepperUM244_TIM2_IRQHandler(void)
 		return;
 	}
 
-	if (StepperUM244_CheckRawLimitInIrq() != 0U)
+	limit_result = StepperUM244_CheckRawLimitInIrq();
+	if (limit_result == STEPPER_RAW_LIMIT_EXPECTED)
 	{
 		StepperUM244_StopTimer();
+		s_expect_limit_stop = 0U;
+		s_state = STEPPER_UM244_STATE_HOLD_WAIT;
+		return;
+	}
+	if (limit_result != STEPPER_RAW_LIMIT_OK)
+	{
+		StepperUM244_StopTimer();
+		s_expect_limit_stop = 0U;
 		s_state = STEPPER_UM244_STATE_FAULT;
 		return;
 	}
@@ -393,6 +464,8 @@ void StepperUM244_TIM2_IRQHandler(void)
 		if (s_completed_pulses >= s_target_pulses)
 		{
 			StepperUM244_StopTimer();
+			s_expect_limit_stop = 0U;
+			s_stop_reason = STEPPER_UM244_STOP_PULSE_DONE;
 			s_state = STEPPER_UM244_STATE_HOLD_WAIT;
 			return;
 		}
@@ -408,6 +481,8 @@ void StepperUM244_TIM2_IRQHandler(void)
 		if (s_completed_pulses >= s_target_pulses)
 		{
 			StepperUM244_StopTimer();
+			s_expect_limit_stop = 0U;
+			s_stop_reason = STEPPER_UM244_STOP_PULSE_DONE;
 			s_state = STEPPER_UM244_STATE_HOLD_WAIT;
 		}
 	}

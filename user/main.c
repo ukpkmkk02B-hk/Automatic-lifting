@@ -8,6 +8,8 @@
 #include "water_depth.h"
 #include "error_manager.h"
 #include "stepper_um244.h"
+#include "position_tracker.h"
+#include "homing.h"
 
 static uint32_t g_app_ms;
 
@@ -141,6 +143,8 @@ int main(void)
 	KeyScan_Init();
 	ErrorManager_Init();
 	StepperUM244_Init();
+	PositionTracker_Init();
+	Homing_Init();
 	WaterDepth_Init();
 	WF5805F_InitAll();
 	OLED_Init();
@@ -154,6 +158,8 @@ int main(void)
 		Limit_Update(g_app_ms);
 		KeyScan_Update(g_app_ms);
 		StepperUM244_Poll(g_app_ms);
+		PositionTracker_ServiceSafety();
+		Homing_Update(g_app_ms);
 		App_UpdateLeds(g_app_ms);
 		WF5805F_Update(g_app_ms);
 		WaterDepth_Update(g_app_ms);

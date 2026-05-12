@@ -8,6 +8,7 @@ DebugConfig/
 
 # Local editor/tool logs
 .vscode/*.log
+.vscode/*.log.lock
 stage*_build.log
 
 # Local temporary/generated helper files
