@@ -5,6 +5,8 @@
 #include "key_scan.h"
 #include "LED.h"
 #include "wf5805f.h"
+#include "water_depth.h"
+#include "error_manager.h"
 
 static uint32_t g_app_ms;
 
@@ -23,46 +25,73 @@ static void App_TimebasePoll(void)
 	}
 }
 
-static void App_ShowSensorLine(uint8_t line, char label, WF5805F_Sensor_t sensor)
+static void App_ShowDepthLine(uint8_t line, char label, int32_t depth_mm_x10)
 {
-	WF5805F_Reading_t reading;
-	WF5805F_Status_t status;
-	uint32_t pressure;
+	uint32_t value;
 
-	status = WF5805F_GetReading(sensor, &reading);
+	OLED_ShowString(line, 1, "                ");
 	OLED_ShowChar(line, 1, label);
+	OLED_ShowString(line, 2, ":");
 
-	if ((status == WF5805F_OK) && (reading.valid != 0U))
+	if (depth_mm_x10 < 0)
 	{
-		OLED_ShowString(line, 2, " OK P");
-		if (reading.pressure_hpa_x100 < 0)
-		{
-			pressure = (uint32_t)(-reading.pressure_hpa_x100);
-			OLED_ShowChar(line, 7, '-');
-			OLED_ShowNum(line, 8, pressure % 100000UL, 5);
-			OLED_ShowString(line, 13, "    ");
-		}
-		else
-		{
-			pressure = (uint32_t)reading.pressure_hpa_x100;
-			OLED_ShowNum(line, 7, pressure % 1000000UL, 6);
-			OLED_ShowString(line, 13, "    ");
-		}
+		value = (uint32_t)(-depth_mm_x10);
+		OLED_ShowChar(line, 4, '-');
 	}
 	else
 	{
-		OLED_ShowString(line, 2, " ER F");
-		OLED_ShowNum(line, 7, WF5805F_GetFailureCount(sensor) % 10000U, 4);
-		OLED_ShowString(line, 11, "      ");
+		value = (uint32_t)depth_mm_x10;
+		OLED_ShowChar(line, 4, ' ');
+	}
+
+	OLED_ShowNum(line, 5, (value / 10U) % 10000U, 4);
+	OLED_ShowChar(line, 9, '.');
+	OLED_ShowNum(line, 10, value % 10U, 1);
+	OLED_ShowString(line, 11, "mm");
+}
+
+static void App_ShowErrorLine(void)
+{
+	ErrorCode_t primary;
+
+	primary = ErrorManager_GetPrimary();
+	OLED_ShowString(4, 1, "ERR ");
+	if (primary == ERROR_CODE_E_NONE)
+	{
+		OLED_ShowString(4, 5, "NONE       ");
+	}
+	else
+	{
+		OLED_ShowNum(4, 5, (uint32_t)primary, 2);
+		if (ErrorManager_HasFault() != 0U)
+		{
+			OLED_ShowString(4, 8, "FAULT ");
+		}
+		else
+		{
+			OLED_ShowString(4, 8, "WARN  ");
+		}
 	}
 }
 
-static void App_ShowStage2State(void)
+static void App_ShowStage3State(void)
 {
-	OLED_ShowString(1, 1, "STAGE2 WF5805F  ");
-	App_ShowSensorLine(2, 'A', WF5805F_SENSOR_AIR);
-	App_ShowSensorLine(3, 'B', WF5805F_SENSOR_BASKET);
-	App_ShowSensorLine(4, 'C', WF5805F_SENSOR_TANK);
+	WaterDepth_State_t state;
+
+	OLED_ShowString(1, 1, "STAGE3 DEPTH    ");
+
+	if (WaterDepth_GetState(&state) == WATER_DEPTH_OK)
+	{
+		App_ShowDepthLine(2, 'B', state.basket_depth_mm_x10);
+		App_ShowDepthLine(3, 'T', state.tank_depth_mm_x10);
+	}
+	else
+	{
+		OLED_ShowString(2, 1, "B: WAIT         ");
+		OLED_ShowString(3, 1, "T: WAIT         ");
+	}
+
+	App_ShowErrorLine();
 }
 
 static void App_HandleKeyEvents(uint16_t events)
@@ -109,10 +138,12 @@ int main(void)
 	LED_Init();
 	Limit_Init();
 	KeyScan_Init();
+	ErrorManager_Init();
+	WaterDepth_Init();
 	WF5805F_InitAll();
 	OLED_Init();
 	OLED_Clear();
-	App_ShowStage2State();
+	App_ShowStage3State();
 	last_display_ms = 0U;
 	
 	while (1)
@@ -122,6 +153,7 @@ int main(void)
 		KeyScan_Update(g_app_ms);
 		App_UpdateLeds(g_app_ms);
 		WF5805F_Update(g_app_ms);
+		WaterDepth_Update(g_app_ms);
 
 		key_events = KeyScan_GetEvents();
 		if (key_events != 0U)
@@ -132,7 +164,7 @@ int main(void)
 		if ((uint32_t)(g_app_ms - last_display_ms) >= 250U)
 		{
 			last_display_ms = g_app_ms;
-			App_ShowStage2State();
+			App_ShowStage3State();
 		}
 	}
 }

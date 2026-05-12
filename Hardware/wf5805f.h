@@ -35,6 +35,7 @@ void WF5805F_InitAll(void);
 void WF5805F_Update(uint32_t now_ms);
 WF5805F_Status_t WF5805F_GetReading(WF5805F_Sensor_t sensor, WF5805F_Reading_t *reading);
 uint16_t WF5805F_GetFailureCount(WF5805F_Sensor_t sensor);
+uint16_t WF5805F_GetRecoveryFailureCount(WF5805F_Sensor_t sensor);
 WF5805F_Status_t WF5805F_ResetBus(WF5805F_Sensor_t sensor);
 
 #endif

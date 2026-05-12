@@ -730,6 +730,31 @@
               <FileType>5</FileType>
               <FilePath>.\Hardware\wf5805f.h</FilePath>
             </File>
+            <File>
+              <FileName>error_code.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\error_code.h</FilePath>
+            </File>
+            <File>
+              <FileName>error_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\error_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>error_manager.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\error_manager.h</FilePath>
+            </File>
+            <File>
+              <FileName>water_depth.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\water_depth.c</FilePath>
+            </File>
+            <File>
+              <FileName>water_depth.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\water_depth.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

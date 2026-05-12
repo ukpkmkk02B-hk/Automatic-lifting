@@ -100,4 +100,15 @@
 #define BOARD_NAP_MAX_PULSES             16U
 #define BOARD_DIR_SETUP_HOLD_MS          5U
 
+/* Water depth and sensor health constants */
+#define BOARD_WATER_FILTER_SAMPLES       5U
+#define BOARD_TANK_MIN_DEPTH_MM          250
+#define BOARD_TANK_MAX_DEPTH_MM          450
+#define BOARD_BASKET_MIN_SAFE_DEPTH_MM   5
+#define BOARD_BASKET_MAX_SAFE_DEPTH_MM   120
+#define BOARD_WATER_JUMP_MM_PER_MIN      10
+#define BOARD_SENSOR_FAILURE_LIMIT       5U
+#define BOARD_I2C_RECOVERY_FAILURE_LIMIT 5U
+#define BOARD_PRESSURE_PHYSICAL_MIN_MM_X10 (-20)
+
 #endif

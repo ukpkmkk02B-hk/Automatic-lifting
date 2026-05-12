@@ -27,6 +27,7 @@ typedef struct
 	WF5805F_Reading_t reading;
 	WF5805F_Status_t last_error;
 	uint16_t failure_count;
+	uint16_t recovery_failure_count;
 	uint32_t next_action_ms;
 	uint32_t convert_start_ms;
 } WF5805F_Context_t;
@@ -120,6 +121,18 @@ static WF5805F_Status_t WF5805F_MapI2CStatus(SoftI2C_Status_t status)
 	return WF5805F_ERROR_I2C;
 }
 
+static void WF5805F_RecoverAfterI2CFailure(WF5805F_Context_t *ctx)
+{
+	if (SoftI2C_RecoverBus(&ctx->bus) == SOFT_I2C_OK)
+	{
+		ctx->recovery_failure_count = 0U;
+	}
+	else if (ctx->recovery_failure_count < 0xFFFFU)
+	{
+		ctx->recovery_failure_count++;
+	}
+}
+
 static void WF5805F_StartConversion(WF5805F_Context_t *ctx, uint32_t now_ms)
 {
 	SoftI2C_Status_t i2c_status;
@@ -132,7 +145,7 @@ static void WF5805F_StartConversion(WF5805F_Context_t *ctx, uint32_t now_ms)
 	status = WF5805F_MapI2CStatus(i2c_status);
 	if (status != WF5805F_OK)
 	{
-		(void)SoftI2C_RecoverBus(&ctx->bus);
+		WF5805F_RecoverAfterI2CFailure(ctx);
 		WF5805F_RecordFailure(ctx, status, now_ms);
 		return;
 	}
@@ -161,7 +174,7 @@ static void WF5805F_ReadWhenReady(WF5805F_Context_t *ctx, uint32_t now_ms)
 	status = WF5805F_MapI2CStatus(i2c_status);
 	if (status != WF5805F_OK)
 	{
-		(void)SoftI2C_RecoverBus(&ctx->bus);
+		WF5805F_RecoverAfterI2CFailure(ctx);
 		WF5805F_RecordFailure(ctx, status, now_ms);
 		return;
 	}
@@ -195,7 +208,7 @@ static void WF5805F_ReadWhenReady(WF5805F_Context_t *ctx, uint32_t now_ms)
 	status = WF5805F_MapI2CStatus(i2c_status);
 	if (status != WF5805F_OK)
 	{
-		(void)SoftI2C_RecoverBus(&ctx->bus);
+		WF5805F_RecoverAfterI2CFailure(ctx);
 		WF5805F_RecordFailure(ctx, status, now_ms);
 		return;
 	}
@@ -257,6 +270,7 @@ void WF5805F_InitAll(void)
 		g_wf5805f[i].reading.status = 0U;
 		g_wf5805f[i].last_error = WF5805F_PENDING;
 		g_wf5805f[i].failure_count = 0U;
+		g_wf5805f[i].recovery_failure_count = 0U;
 		g_wf5805f[i].next_action_ms = 0U;
 		g_wf5805f[i].convert_start_ms = 0U;
 		SoftI2C_InitBus(&g_wf5805f[i].bus);
@@ -313,6 +327,16 @@ uint16_t WF5805F_GetFailureCount(WF5805F_Sensor_t sensor)
 	return g_wf5805f[sensor].failure_count;
 }
 
+uint16_t WF5805F_GetRecoveryFailureCount(WF5805F_Sensor_t sensor)
+{
+	if (!WF5805F_IsSensorValid(sensor))
+	{
+		return 0U;
+	}
+
+	return g_wf5805f[sensor].recovery_failure_count;
+}
+
 WF5805F_Status_t WF5805F_ResetBus(WF5805F_Sensor_t sensor)
 {
 	SoftI2C_Status_t status;
@@ -325,9 +349,14 @@ WF5805F_Status_t WF5805F_ResetBus(WF5805F_Sensor_t sensor)
 	status = SoftI2C_RecoverBus(&g_wf5805f[sensor].bus);
 	if (status != SOFT_I2C_OK)
 	{
+		if (g_wf5805f[sensor].recovery_failure_count < 0xFFFFU)
+		{
+			g_wf5805f[sensor].recovery_failure_count++;
+		}
 		return WF5805F_MapI2CStatus(status);
 	}
 
+	g_wf5805f[sensor].recovery_failure_count = 0U;
 	g_wf5805f[sensor].state = WF5805F_STATE_IDLE;
 	g_wf5805f[sensor].next_action_ms = 0U;
 	return WF5805F_OK;
