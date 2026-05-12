@@ -7,6 +7,7 @@
 #include "wf5805f.h"
 #include "water_depth.h"
 #include "error_manager.h"
+#include "stepper_um244.h"
 
 static uint32_t g_app_ms;
 
@@ -139,6 +140,7 @@ int main(void)
 	Limit_Init();
 	KeyScan_Init();
 	ErrorManager_Init();
+	StepperUM244_Init();
 	WaterDepth_Init();
 	WF5805F_InitAll();
 	OLED_Init();
@@ -151,6 +153,7 @@ int main(void)
 		App_TimebasePoll();
 		Limit_Update(g_app_ms);
 		KeyScan_Update(g_app_ms);
+		StepperUM244_Poll(g_app_ms);
 		App_UpdateLeds(g_app_ms);
 		WF5805F_Update(g_app_ms);
 		WaterDepth_Update(g_app_ms);

@@ -99,6 +99,11 @@
 #define BOARD_NAP_DEFAULT_PULSES         8U
 #define BOARD_NAP_MAX_PULSES             16U
 #define BOARD_DIR_SETUP_HOLD_MS          5U
+#define BOARD_STEPPER_AUTO_FREQ_HZ       800U
+#define BOARD_STEPPER_FALLBACK_FREQ_HZ   400U
+#define BOARD_STEPPER_MANUAL_FREQ_HZ     800U
+#define BOARD_STEPPER_HOMING_FREQ_HZ     400U
+#define BOARD_STEPPER_MAX_FREQ_HZ        5000U
 
 /* Water depth and sensor health constants */
 #define BOARD_WATER_FILTER_SAMPLES       5U
