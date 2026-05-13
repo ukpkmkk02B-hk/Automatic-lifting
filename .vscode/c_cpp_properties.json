@@ -7,7 +7,8 @@
                 "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\user",
                 "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\Library",
                 "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\Hardware",
-                "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\system"
+                "c:\\Users\\ukpkmkk\\Desktop\\vs code\\Automatic lifting_4.23\\system",
+                "${workspaceFolder}/**"
             ],
             "defines": [
                 "USE_STDPERIPH_DRIVER",

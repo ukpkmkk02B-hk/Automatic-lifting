@@ -32,22 +32,36 @@ static uint32_t s_last_scan_ms;
 static uint16_t s_events;
 static uint8_t s_initialized;
 
+// 函    数：KeyScan_TimeElapsed
+// 参    数：now_ms 当前毫秒时间戳；then_ms 起始时间戳；interval_ms 目标间隔。
+// 返 回 值：达到或超过间隔返回 1，否则返回 0。
+// 注意事项：使用无符号差值，允许毫秒计数回绕。
 static uint8_t KeyScan_TimeElapsed(uint32_t now_ms, uint32_t then_ms, uint32_t interval_ms)
 {
     return ((uint32_t)(now_ms - then_ms) >= interval_ms) ? 1U : 0U;
 }
 
+// 函    数：KeyScan_ReadRawPin
+// 参    数：key 按键编号，范围为 KeyScan_Key_t。
+// 返 回 值：1 表示原始 GPIO 为按下，0 表示松开；非法按键返回 0。
+// 注意事项：按键低有效，读取后统一转换为 1=按下。
 static uint8_t KeyScan_ReadRawPin(KeyScan_Key_t key)
 {
     if ((uint32_t)key >= (uint32_t)KEY_SCAN_COUNT)
     {
+        // 无效按键按未按下处理，避免产生不存在的用户事件。
         return 0U;
     }
 
+    // BOARD_KEY_ACTIVE_LEVEL 为 Bit_RESET，对应按下时 GPIO 被拉低。
     return (GPIO_ReadInputDataBit(s_key_pins[key].gpio,
                                   s_key_pins[key].pin) == BOARD_KEY_ACTIVE_LEVEL) ? 1U : 0U;
 }
 
+// 函    数：KeyScan_HandleStableChange
+// 参    数：key 按键编号；now_ms 当前毫秒时间戳；pressed 消抖后的稳定按下状态。
+// 返 回 值：无
+// 注意事项：按下沿只记录时间；短按/长按在释放沿根据持续时间生成事件。
 static void KeyScan_HandleStableChange(KeyScan_Key_t key, uint32_t now_ms, uint8_t pressed)
 {
     uint32_t held_ms;
@@ -56,6 +70,7 @@ static void KeyScan_HandleStableChange(KeyScan_Key_t key, uint32_t now_ms, uint8
 
     if (pressed != 0U)
     {
+        // 按下沿只记录起始时间；短按/长按在释放后再生成事件。
         s_key_state[key].pressed_since_ms = now_ms;
         s_key_state[key].maintenance_reported = 0U;
         return;
@@ -64,6 +79,7 @@ static void KeyScan_HandleStableChange(KeyScan_Key_t key, uint32_t now_ms, uint8
     held_ms = (uint32_t)(now_ms - s_key_state[key].pressed_since_ms);
     if (s_key_state[key].maintenance_reported != 0U)
     {
+        // PB10 维护入口已上报后，释放时不再额外生成普通长按事件。
         return;
     }
 
@@ -77,6 +93,10 @@ static void KeyScan_HandleStableChange(KeyScan_Key_t key, uint32_t now_ms, uint8
     }
 }
 
+// 函    数：KeyScan_Init
+// 参    数：无
+// 返 回 值：无
+// 注意事项：初始化 PB1/PB11/PB10/PB0 为上拉输入，并以当前状态作为消抖起点。
 void KeyScan_Init(void)
 {
     GPIO_InitTypeDef gpio_init;
@@ -84,6 +104,7 @@ void KeyScan_Init(void)
 
     RCC_APB2PeriphClockCmd(BOARD_RCC_GPIOB, ENABLE);
 
+    // 按键输入使用上拉，按下时被拉低。
     gpio_init.GPIO_Mode = GPIO_Mode_IPU;
     gpio_init.GPIO_Pin = BOARD_KEY1_PIN |
                          BOARD_KEY2_PIN |
@@ -94,6 +115,7 @@ void KeyScan_Init(void)
 
     for (i = 0U; i < (uint8_t)KEY_SCAN_COUNT; i++)
     {
+        // 上电时不强制等待松手，只把当前状态作为消抖起点。
         s_key_state[i].raw_pressed = KeyScan_ReadRawPin((KeyScan_Key_t)i);
         s_key_state[i].stable_pressed = s_key_state[i].raw_pressed;
         s_key_state[i].pending_pressed = s_key_state[i].raw_pressed;
@@ -107,6 +129,10 @@ void KeyScan_Init(void)
     s_initialized = 1U;
 }
 
+// 函    数：KeyScan_Update
+// 参    数：now_ms 系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：非阻塞扫描；短按/长按在释放时上报，PB10 维护入口在按住 3 秒时上报一次。
 void KeyScan_Update(uint32_t now_ms)
 {
     uint8_t i;
@@ -120,6 +146,7 @@ void KeyScan_Update(uint32_t now_ms)
 
     if (KeyScan_TimeElapsed(now_ms, s_last_scan_ms, BOARD_KEY_SCAN_PERIOD_MS) == 0U)
     {
+        // 扫描周期固定为 10ms，避免主循环快慢影响消抖判定。
         return;
     }
     s_last_scan_ms = now_ms;
@@ -131,6 +158,7 @@ void KeyScan_Update(uint32_t now_ms)
 
         if (raw == s_key_state[i].stable_pressed)
         {
+            // 原始状态回到稳定状态时，取消正在观察的跳变。
             s_key_state[i].pending_pressed = raw;
             s_key_state[i].pending_since_ms = now_ms;
         }
@@ -138,6 +166,7 @@ void KeyScan_Update(uint32_t now_ms)
         {
             if (raw != s_key_state[i].pending_pressed)
             {
+                // 新跳变候选出现，重新计 25ms 消抖时间。
                 s_key_state[i].pending_pressed = raw;
                 s_key_state[i].pending_since_ms = now_ms;
             }
@@ -153,6 +182,7 @@ void KeyScan_Update(uint32_t now_ms)
             (s_key_state[i].stable_pressed != 0U) &&
             (s_key_state[i].maintenance_reported == 0U))
         {
+            // PB10 长按 3 秒进入维护入口，事件只上报一次。
             held_ms = (uint32_t)(now_ms - s_key_state[i].pressed_since_ms);
             if (held_ms >= BOARD_KEY_MAINTENANCE_MS)
             {
@@ -163,6 +193,10 @@ void KeyScan_Update(uint32_t now_ms)
     }
 }
 
+// 函    数：KeyScan_GetEvents
+// 参    数：无
+// 返 回 值：按键事件位图，读取后清空。
+// 注意事项：事件为边沿型缓存，同一次短按或长按只被消费一次。
 uint16_t KeyScan_GetEvents(void)
 {
     uint16_t events;
@@ -172,6 +206,10 @@ uint16_t KeyScan_GetEvents(void)
     return events;
 }
 
+// 函    数：KeyScan_IsPressed
+// 参    数：key 按键编号，范围为 KeyScan_Key_t。
+// 返 回 值：1 表示滤波后按下，0 表示松开或参数非法。
+// 注意事项：用于手动点动等需要查询当前按住状态的场景。
 uint8_t KeyScan_IsPressed(KeyScan_Key_t key)
 {
     if ((uint32_t)key >= (uint32_t)KEY_SCAN_COUNT)

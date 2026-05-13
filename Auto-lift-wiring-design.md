@@ -487,8 +487,8 @@ STM32 侧接法：
 
 LED1 和 LED2 按低电平点亮方式接线：LED 正极/阳极经限流电阻接 3.3V，LED 负极/阴极分别接 STM32 GPIO。LED1 负极接 `PA6`，LED2 负极接 `PA7`。固件初始化后 GPIO 输出高电平，LED 默认熄灭；GPIO 输出低电平时点亮。不要把 LED 正极直接接 GPIO 并按高电平点亮方式接线，除非同步修改 LED 驱动的有效电平定义。
 
-| LED 状态 | GPIO 电平 |
-| -------- | --------- |
+| LED 状态 | GPIO 电平  |
+| -------- | ---------- |
 | 熄灭     | 高电平 `1` |
 | 点亮     | 低电平 `0` |
 
@@ -687,18 +687,18 @@ OLED 使用当前 0.96 寸 128x64 屏和 8x16 ASCII 字库，固件页面按 4 �
 
 通用显示规则：
 
-| 项目         | 规则 |
-| ------------ | ---- |
-| 字符集       | 仅使用 ASCII 可见字符 |
-| 页面尺寸     | 4 行 x 16 字符；不足 16 字符的行需要用空格清尾 |
-| 水深单位     | 显示为 `mm`，默认 1 位小数，例如 `100.0mm` |
-| 压力单位     | 显示为 `hPa`，默认 2 位小数，例如 `1013.25hPa` |
-| 时间单位     | 倒计时小于 1 小时显示 `014m24s`，大于等于 1 小时显示 `02h15m` |
-| 脉冲单位     | 显示为 `pls` |
-| 布尔状态     | 正常/有效显示 `OK`，失败显示 `FAIL`，触发显示 `1`，未触发显示 `0` |
-| 无效数据     | 数值用 `--.-mm`、`----.--hPa` 或 `---` 占位 |
-| 多个错误     | OLED 优先显示最高优先级严重故障；其他错误在第 3 行显示 `+N MORE` |
-| 蜂鸣器静音   | `MUTE:Y` 表示已静音，`MUTE:N` 表示未静音 |
+| 项目       | 规则                                                              |
+| ---------- | ----------------------------------------------------------------- |
+| 字符集     | 仅使用 ASCII 可见字符                                             |
+| 页面尺寸   | 4 行 x 16 字符；不足 16 字符的行需要用空格清尾                    |
+| 水深单位   | 显示为 `mm`，默认 1 位小数，例如 `100.0mm`                        |
+| 压力单位   | 显示为 `hPa`，默认 2 位小数，例如 `1013.25hPa`                    |
+| 时间单位   | 倒计时小于 1 小时显示 `014m24s`，大于等于 1 小时显示 `02h15m`     |
+| 脉冲单位   | 显示为 `pls`                                                      |
+| 布尔状态   | 正常/有效显示 `OK`，失败显示 `FAIL`，触发显示 `1`，未触发显示 `0` |
+| 无效数据   | 数值用 `--.-mm`、`----.--hPa` 或 `---` 占位                       |
+| 多个错误   | OLED 优先显示最高优先级严重故障；其他错误在第 3 行显示 `+N MORE`  |
+| 蜂鸣器静音 | `MUTE:Y` 表示已静音，`MUTE:N` 表示未静音                          |
 
 主页面模板：
 
@@ -709,12 +709,12 @@ NXT 014m24s
 P008 ERR-- M-N
 ```
 
-| 行 | 字段来源 | 异常显示 |
-| -- | -------- | -------- |
-| 1  | `basket_depth_mm_x10`、`target_depth_mm_x10` | 任一水深无效时对应字段显示 `--.-` |
-| 2  | `run_days`、`app_mode` | 模式显示 `AUTO`、`PAUS`、`MANU`、`MAINT`、`FAULT` |
-| 3  | `next_nap_remaining_s` | 暂停/故障/维护时显示 `NXT --m--s` |
-| 4  | `today_done_pulses`、最高优先级错误摘要、`buzzer_muted` | 无错误显示 `ERR--`；有错误显示 `ERR!` |
+| 行  | 字段来源                                                | 异常显示                                          |
+| --- | ------------------------------------------------------- | ------------------------------------------------- |
+| 1   | `basket_depth_mm_x10`、`target_depth_mm_x10`            | 任一水深无效时对应字段显示 `--.-`                 |
+| 2   | `run_days`、`app_mode`                                  | 模式显示 `AUTO`、`PAUS`、`MANU`、`MAINT`、`FAULT` |
+| 3   | `next_nap_remaining_s`                                  | 暂停/故障/维护时显示 `NXT --m--s`                 |
+| 4   | `today_done_pulses`、最高优先级错误摘要、`buzzer_muted` | 无错误显示 `ERR--`；有错误显示 `ERR!`             |
 
 自检页面模板：
 
@@ -725,12 +725,12 @@ I2C A- B- C-
 LIM ----
 ```
 
-| 行 | 字段来源 | 异常显示 |
-| -- | -------- | -------- |
-| 1  | 固定标题 | 自检失败后显示 `SELF TEST FAIL` |
-| 2  | 传感器稳定等待倒计时 | 等待结束后显示 `CHECK DONE` |
-| 3  | 三条 WF5805F I2C 总线状态 | `AOK/BOK/COK` 或 `AFL/BFL/CFL` |
-| 4  | 四个限位输入原始/滤波状态 | 限位组合异常显示 `LIM ERR` |
+| 行  | 字段来源                  | 异常显示                        |
+| --- | ------------------------- | ------------------------------- |
+| 1   | 固定标题                  | 自检失败后显示 `SELF TEST FAIL` |
+| 2   | 传感器稳定等待倒计时      | 等待结束后显示 `CHECK DONE`     |
+| 3   | 三条 WF5805F I2C 总线状态 | `AOK/BOK/COK` 或 `AFL/BFL/CFL`  |
+| 4   | 四个限位输入原始/滤波状态 | 限位组合异常显示 `LIM ERR`      |
 
 传感器页面模板：
 
@@ -741,12 +741,12 @@ TNK 0350.0mm
 I2C A0 B0 C0
 ```
 
-| 行 | 字段来源 | 异常显示 |
-| -- | -------- | -------- |
-| 1  | `P_air.pressure_hpa_x100` | 空气参考失败显示 `AIR FAIL` |
-| 2  | `basket_depth_mm_x10` | 框篮传感器失败显示 `BAS FAIL`，水深越界显示 `BAS LOW!` 或 `BAS HIGH` |
-| 3  | `tank_depth_mm_x10` | 鱼缸传感器失败显示 `TNK FAIL`，水深越界显示 `TNK LOW!` 或 `TNK HIGH` |
-| 4  | I2C-A/B/C 连续失败计数 | 任一总线恢复失败显示 `I2C FAIL` |
+| 行  | 字段来源                  | 异常显示                                                             |
+| --- | ------------------------- | -------------------------------------------------------------------- |
+| 1   | `P_air.pressure_hpa_x100` | 空气参考失败显示 `AIR FAIL`                                          |
+| 2   | `basket_depth_mm_x10`     | 框篮传感器失败显示 `BAS FAIL`，水深越界显示 `BAS LOW!` 或 `BAS HIGH` |
+| 3   | `tank_depth_mm_x10`       | 鱼缸传感器失败显示 `TNK FAIL`，水深越界显示 `TNK LOW!` 或 `TNK HIGH` |
+| 4   | I2C-A/B/C 连续失败计数    | 任一总线恢复失败显示 `I2C FAIL`                                      |
 
 限位页面模板：
 
@@ -757,12 +757,12 @@ POS 050.0mm OK
 LIM ERR:NONE
 ```
 
-| 行 | 字段来源 | 异常显示 |
-| -- | -------- | -------- |
-| 1  | 四个限位滤波状态，`1` 为触发，`0` 为未触发 | 读数不可用显示 `LU- LD- RU- RD-` |
-| 2  | 左右上限位一致性、左右下限位一致性 | 不一致显示 `UP BAD` 或 `DN BAD` |
-| 3  | `basket_position_mm_x10`、位置可信标志 | 位置不可信显示 `POS --.-mm BAD` |
-| 4  | 限位错误摘要 | 无错误 `NONE`；有错误显示 `UPPER`、`LOWER`、`MISMT` |
+| 行  | 字段来源                                   | 异常显示                                            |
+| --- | ------------------------------------------ | --------------------------------------------------- |
+| 1   | 四个限位滤波状态，`1` 为触发，`0` 为未触发 | 读数不可用显示 `LU- LD- RU- RD-`                    |
+| 2   | 左右上限位一致性、左右下限位一致性         | 不一致显示 `UP BAD` 或 `DN BAD`                     |
+| 3   | `basket_position_mm_x10`、位置可信标志     | 位置不可信显示 `POS --.-mm BAD`                     |
+| 4   | 限位错误摘要                               | 无错误 `NONE`；有错误显示 `UPPER`、`LOWER`、`MISMT` |
 
 参数页面模板。参数页面采用一页编辑一个参数的方式，`PB1` 减小，`PB11` 增大，`PB10` 确认，`PB0` 取消或切换页面：
 
@@ -773,13 +773,13 @@ RNG 008-100mm
 PB1- PB11+ OK
 ```
 
-| 参数页 | 第 1 行标题 | 第 2 行字段来源 | 第 3 行范围 |
-| ------ | ----------- | --------------- | ----------- |
-| P1 | `P1 INIT DEPTH` | `initial_target_depth_mm_x10` | `RNG 008-100mm` |
-| P2 | `P2 FINAL DEPTH` | `final_target_depth_mm_x10` | `RNG 008-100mm` |
-| P3 | `P3 DAILY RATE` | `daily_shallow_mm_x10`，显示 `VAL 1.0mm/d` | `RNG 0.0-2.0` |
-| P4 | `P4 NAP PULSE` | `nap_pulses`，显示 `VAL 008pls` | `RNG 001-016` |
-| P5 | `P5 MAN SPEED` | 固定 `VAL 1.0mm/s` | `READ ONLY` |
+| 参数页 | 第 1 行标题      | 第 2 行字段来源                            | 第 3 行范围     |
+| ------ | ---------------- | ------------------------------------------ | --------------- |
+| P1     | `P1 INIT DEPTH`  | `initial_target_depth_mm_x10`              | `RNG 008-100mm` |
+| P2     | `P2 FINAL DEPTH` | `final_target_depth_mm_x10`                | `RNG 008-100mm` |
+| P3     | `P3 DAILY RATE`  | `daily_shallow_mm_x10`，显示 `VAL 1.0mm/d` | `RNG 0.0-2.0`   |
+| P4     | `P4 NAP PULSE`   | `nap_pulses`，显示 `VAL 008pls`            | `RNG 001-016`   |
+| P5     | `P5 MAN SPEED`   | 固定 `VAL 1.0mm/s`                         | `READ ONLY`     |
 
 参数异常显示规则：
 
@@ -799,12 +799,12 @@ POS 050.0mm
 PB1 DN PB11 UP
 ```
 
-| 行 | 字段来源 | 异常显示 |
-| -- | -------- | -------- |
-| 1  | 手动状态 | 按住 `PB1` 显示 `MANUAL DOWN`；按住 `PB11` 显示 `MANUAL UP` |
-| 2  | `basket_depth_mm_x10` | 无效显示 `DEP B:--.-mm` |
-| 3  | `basket_position_mm_x10` | 位置不可信显示 `POS --.-mm` |
-| 4  | 操作提示 | 方向限位触发时显示 `LIMIT BLOCKED` |
+| 行  | 字段来源                 | 异常显示                                                    |
+| --- | ------------------------ | ----------------------------------------------------------- |
+| 1   | 手动状态                 | 按住 `PB1` 显示 `MANUAL DOWN`；按住 `PB11` 显示 `MANUAL UP` |
+| 2   | `basket_depth_mm_x10`    | 无效显示 `DEP B:--.-mm`                                     |
+| 3   | `basket_position_mm_x10` | 位置不可信显示 `POS --.-mm`                                 |
+| 4   | 操作提示                 | 方向限位触发时显示 `LIMIT BLOCKED`                          |
 
 报警页面模板：
 
@@ -815,35 +815,35 @@ E_TANK_LOW
 PB10 MUTE/CLR
 ```
 
-| 行 | 字段来源 | 异常显示 |
-| -- | -------- | -------- |
-| 1  | 最高优先级错误的短原因 | 无错误显示 `ALARM NONE` |
-| 2  | 最高优先级错误码，超过 16 字符时使用短别名 | 无错误显示 `NO ERROR` |
-| 3  | 其他错误数量、蜂鸣器静音状态 | 无其他错误显示 `+0 MORE` |
-| 4  | 当前可执行操作 | 故障未解除时显示 `PB10 MUTE`，故障已解除时显示 `PB10 CLEAR` |
+| 行  | 字段来源                                   | 异常显示                                                    |
+| --- | ------------------------------------------ | ----------------------------------------------------------- |
+| 1   | 最高优先级错误的短原因                     | 无错误显示 `ALARM NONE`                                     |
+| 2   | 最高优先级错误码，超过 16 字符时使用短别名 | 无错误显示 `NO ERROR`                                       |
+| 3   | 其他错误数量、蜂鸣器静音状态               | 无其他错误显示 `+0 MORE`                                    |
+| 4   | 当前可执行操作                             | 故障未解除时显示 `PB10 MUTE`，故障已解除时显示 `PB10 CLEAR` |
 
 错误码短别名建议：
 
-| 错误码 | OLED 短原因 |
-| ------ | ----------- |
-| `E_SENSOR_AIR_FAIL` | `AIR FAIL` |
-| `E_SENSOR_BASKET_FAIL` | `BAS FAIL` |
-| `E_SENSOR_TANK_FAIL` | `TNK FAIL` |
-| `E_I2C_A_FAIL` | `I2C-A FAIL` |
-| `E_I2C_B_FAIL` | `I2C-B FAIL` |
-| `E_I2C_C_FAIL` | `I2C-C FAIL` |
-| `E_TANK_LOW` | `TANK LOW` |
-| `E_TANK_HIGH` | `TANK HIGH` |
-| `E_BASKET_LOW` | `BASKET LOW` |
-| `E_BASKET_HIGH` | `BASKET HIGH` |
-| `E_WATER_JUMP` | `WATER JUMP` |
-| `E_PRESSURE_PHYSICAL` | `PRESS PHYS` |
-| `E_UPPER_LIMIT` | `UP LIMIT` |
-| `E_LOWER_LIMIT` | `DN LIMIT` |
-| `E_LIMIT_MISMATCH` | `LIM MISMT` |
-| `E_STALL` | `STALL` |
-| `W_PARAM_DEFAULT` | `PARAM DEF` |
-| `W_RESTART_DEPTH_DIFF` | `DEP DIFF` |
+| 错误码                 | OLED 短原因   |
+| ---------------------- | ------------- |
+| `E_SENSOR_AIR_FAIL`    | `AIR FAIL`    |
+| `E_SENSOR_BASKET_FAIL` | `BAS FAIL`    |
+| `E_SENSOR_TANK_FAIL`   | `TNK FAIL`    |
+| `E_I2C_A_FAIL`         | `I2C-A FAIL`  |
+| `E_I2C_B_FAIL`         | `I2C-B FAIL`  |
+| `E_I2C_C_FAIL`         | `I2C-C FAIL`  |
+| `E_TANK_LOW`           | `TANK LOW`    |
+| `E_TANK_HIGH`          | `TANK HIGH`   |
+| `E_BASKET_LOW`         | `BASKET LOW`  |
+| `E_BASKET_HIGH`        | `BASKET HIGH` |
+| `E_WATER_JUMP`         | `WATER JUMP`  |
+| `E_PRESSURE_PHYSICAL`  | `PRESS PHYS`  |
+| `E_UPPER_LIMIT`        | `UP LIMIT`    |
+| `E_LOWER_LIMIT`        | `DN LIMIT`    |
+| `E_LIMIT_MISMATCH`     | `LIM MISMT`   |
+| `E_STALL`              | `STALL`       |
+| `W_PARAM_DEFAULT`      | `PARAM DEF`   |
+| `W_RESTART_DEPTH_DIFF` | `DEP DIFF`    |
 
 维护页面模板。维护模式采用菜单页和确认页两类页面：
 
@@ -861,27 +861,27 @@ PB10 YES
 PB0 NO
 ```
 
-| 页面 | 字段来源 | 异常显示 |
-| ---- | -------- | -------- |
-| 维护菜单 | 当前菜单页、可执行维护项 | 有严重故障时不显示自动恢复项 |
-| 空气校准 | `P_air` 当前压力、校准结果 | 传感器失败显示 `AIR FAIL`，不允许保存 |
-| 回零确认 | 位置可信标志、限位状态 | 限位异常显示 `LIM ERR DENY` |
-| 电机释放确认 | 当前模式、故障状态 | 自动模式禁止释放，显示 `AUTO DENY` |
-| 调试读数 | 三颗压力、四个限位、当前位置 | 无效数值按通用无效占位显示 |
+| 页面         | 字段来源                     | 异常显示                              |
+| ------------ | ---------------------------- | ------------------------------------- |
+| 维护菜单     | 当前菜单页、可执行维护项     | 有严重故障时不显示自动恢复项          |
+| 空气校准     | `P_air` 当前压力、校准结果   | 传感器失败显示 `AIR FAIL`，不允许保存 |
+| 回零确认     | 位置可信标志、限位状态       | 限位异常显示 `LIM ERR DENY`           |
+| 电机释放确认 | 当前模式、故障状态           | 自动模式禁止释放，显示 `AUTO DENY`    |
+| 调试读数     | 三颗压力、四个限位、当前位置 | 无效数值按通用无效占位显示            |
 
 数据不可用与异常占位统一规则：
 
-| 情况 | 显示 |
-| ---- | ---- |
-| 传感器启动等待 | `WAIT` |
-| 单个传感器连续失败 | `AIR FAIL`、`BAS FAIL`、`TNK FAIL` |
-| I2C 总线恢复失败 | `I2C-A FAIL`、`I2C-B FAIL`、`I2C-C FAIL` |
-| 水深无效 | `--.-mm` |
-| 压力无效 | `----.--hPa` |
-| 位置不可信 | `POS --.-mm BAD` |
-| 参数越界 | `OUT OF RANGE` |
-| 限位阻止运动 | `LIMIT BLOCKED` |
-| 维护操作被拒绝 | `DENY` |
+| 情况               | 显示                                     |
+| ------------------ | ---------------------------------------- |
+| 传感器启动等待     | `WAIT`                                   |
+| 单个传感器连续失败 | `AIR FAIL`、`BAS FAIL`、`TNK FAIL`       |
+| I2C 总线恢复失败   | `I2C-A FAIL`、`I2C-B FAIL`、`I2C-C FAIL` |
+| 水深无效           | `--.-mm`                                 |
+| 压力无效           | `----.--hPa`                             |
+| 位置不可信         | `POS --.-mm BAD`                         |
+| 参数越界           | `OUT OF RANGE`                           |
+| 限位阻止运动       | `LIMIT BLOCKED`                          |
+| 维护操作被拒绝     | `DENY`                                   |
 
 参数修改规则：
 

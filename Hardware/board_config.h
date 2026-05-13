@@ -3,17 +3,19 @@
 
 #include "stm32f10x.h"
 
-/* Board clocks */
+// 板级 GPIO 时钟：当前已生成模块只使用 GPIOA/GPIOB，PA13/PA14 保留给 SWD 调试。
 #define BOARD_RCC_GPIOA                  RCC_APB2Periph_GPIOA
 #define BOARD_RCC_GPIOB                  RCC_APB2Periph_GPIOB
 
-/* OLED software I2C, OLED only */
+// OLED 专用软件 I2C：PB8/PB9 只接 OLED，OLED 地址固定为 7-bit 0x3C。
+// 注意事项：三颗 WF5805F 地址相同，OLED 总线不能与任意 WF5805F 共用。
 #define BOARD_OLED_SCL_GPIO              GPIOB
 #define BOARD_OLED_SCL_PIN               GPIO_Pin_8
 #define BOARD_OLED_SDA_GPIO              GPIOB
 #define BOARD_OLED_SDA_PIN               GPIO_Pin_9
 
-/* WF5805F software I2C buses */
+// WF5805F 三条独立软件 I2C：A=空气参考，B=框篮水深，C=鱼缸水深。
+// 硬件假设：每条总线上最多挂一颗 WF5805F，SCL/SDA 由模块或外部电阻上拉到 3.3V。
 #define BOARD_I2C_A_SCL_GPIO             GPIOA
 #define BOARD_I2C_A_SCL_PIN              GPIO_Pin_1
 #define BOARD_I2C_A_SDA_GPIO             GPIOA
@@ -27,10 +29,13 @@
 #define BOARD_I2C_C_SDA_GPIO             GPIOA
 #define BOARD_I2C_C_SDA_PIN              GPIO_Pin_9
 
+// I2C 地址统一使用 7-bit 形式。
+// OLED 示例中的 0x78、WF5805F 官方驱动中的 0xDA 都是包含写方向位的 8-bit 写地址。
 #define BOARD_OLED_ADDR_7BIT             0x3CU
 #define BOARD_WF5805F_ADDR_7BIT          0x6DU
 
-/* UM244 control pins */
+// UM244 控制引脚：PA3/PA4/PA5 经三路 NPN 光耦分别下拉 PU-/DR-/MF-。
+// 注意事项：UM244 的 PU+/DR+/MF+ 接 5V 信号正端，STM32 不直接驱动这些 5V 端子。
 #define BOARD_UM244_STEP_GPIO            GPIOA
 #define BOARD_UM244_STEP_PIN             GPIO_Pin_3
 #define BOARD_UM244_DIR_GPIO             GPIOA
@@ -38,14 +43,18 @@
 #define BOARD_UM244_MF_GPIO              GPIOA
 #define BOARD_UM244_MF_PIN               GPIO_Pin_5
 
+// 光耦输出反相：STM32 输出低电平时，UM244 对应负端被拉低。
+// 默认安全态：STEP 空闲为高电平，MF 保持为高电平，避免复位后误出脉冲或释放电机。
 #define BOARD_UM244_STEP_IDLE_LEVEL      Bit_SET
 #define BOARD_UM244_STEP_ACTIVE_LEVEL    Bit_RESET
 #define BOARD_UM244_MF_HOLD_LEVEL        Bit_SET
 #define BOARD_UM244_MF_RELEASE_LEVEL     Bit_RESET
+// DIR 高低电平需要首轮带载前实测；若方向相反，应改这里的映射而不是改控制算法。
 #define BOARD_UM244_DIR_UP_LEVEL         Bit_SET
 #define BOARD_UM244_DIR_DOWN_LEVEL       Bit_RESET
 
-/* Limit inputs, optocoupler output low means triggered */
+// 四路 24V NPN 限位经光耦隔离后进入 STM32，MCU 侧使用 3.3V 上拉。
+// 有效电平：GPIO 读到低电平表示对应物理限位已触发。
 #define BOARD_LIMIT_LEFT_UPPER_GPIO      GPIOB
 #define BOARD_LIMIT_LEFT_UPPER_PIN       GPIO_Pin_12
 #define BOARD_LIMIT_LEFT_LOWER_GPIO      GPIOB
@@ -56,11 +65,14 @@
 #define BOARD_LIMIT_RIGHT_LOWER_PIN      GPIO_Pin_15
 #define BOARD_LIMIT_ACTIVE_LEVEL         Bit_RESET
 
+// 限位滤波时间单位为 ms。
+// 触发确认 20ms 小于释放确认 50ms，目的是让运动方向限位尽快停机，同时避免松开抖动。
 #define BOARD_LIMIT_SAMPLE_MS            5U
 #define BOARD_LIMIT_TRIGGER_CONFIRM_MS   20U
 #define BOARD_LIMIT_RELEASE_CONFIRM_MS   50U
 
-/* Key inputs, active low */
+// 四个按键均按低有效处理，输入侧依赖 MCU 上拉。
+// PB10 同时承担暂停/确认/静音/维护入口，维护入口长按阈值为 3000ms。
 #define BOARD_KEY1_GPIO                  GPIOB
 #define BOARD_KEY1_PIN                   GPIO_Pin_1
 #define BOARD_KEY2_GPIO                  GPIOB
@@ -71,6 +83,8 @@
 #define BOARD_KEY_PAGE_PIN               GPIO_Pin_0
 #define BOARD_KEY_ACTIVE_LEVEL           Bit_RESET
 
+// 按键时间单位为 ms：扫描周期 10ms，消抖 25ms。
+// 事件定义：25-1000ms 为短按，>=1000ms 为普通长按，PB10 >=3000ms 额外上报维护入口。
 #define BOARD_KEY_SCAN_PERIOD_MS         10U
 #define BOARD_KEY_DEBOUNCE_MS            25U
 #define BOARD_KEY_SHORT_MIN_MS           25U
@@ -78,13 +92,15 @@
 #define BOARD_KEY_LONG_MS                1000U
 #define BOARD_KEY_MAINTENANCE_MS         3000U
 
-/* Active buzzer, low level sounds */
+// 有源蜂鸣器模块接 PA0，模块 I/O 为低电平触发。
+// 默认安全态：PA0 输出高电平关闭蜂鸣器；蜂鸣器静音不代表故障被清除。
 #define BOARD_BUZZER_GPIO                GPIOA
 #define BOARD_BUZZER_PIN                 GPIO_Pin_0
 #define BOARD_BUZZER_ON_LEVEL            Bit_RESET
 #define BOARD_BUZZER_OFF_LEVEL           Bit_SET
 
-/* Existing LEDs */
+// 板载状态 LED：阳极经限流电阻接 3.3V，阴极接 GPIO。
+// 有效电平：GPIO 拉低点亮，拉高熄灭。
 #define BOARD_LED1_RCC                   BOARD_RCC_GPIOA
 #define BOARD_LED1_GPIO                  GPIOA
 #define BOARD_LED1_PIN                   GPIO_Pin_6
@@ -92,35 +108,44 @@
 #define BOARD_LED2_GPIO                  GPIOA
 #define BOARD_LED2_PIN                   GPIO_Pin_7
 
-/* Motion constants for later stages */
+// 运动换算：UM244 1600 pulse/rev，丝杆导程 2.0mm/rev。
+// 换算结果：800 pulse/mm，内部位置跟踪和有限脉冲命令都以 pulse 为基本单位。
 #define BOARD_STEPPER_PULSE_PER_REV      1600U
 #define BOARD_LEADSCREW_MM_PER_REV_X10   20U
 #define BOARD_STEPPER_PULSE_PER_MM       800U
+// 自动打盹单次脉冲范围，单位 pulse；8 pulse 约等于 0.01mm，最大不超过 16 pulse。
 #define BOARD_NAP_DEFAULT_PULSES         8U
 #define BOARD_NAP_MAX_PULSES             16U
+// DIR 建立/保持时间单位 ms，必须覆盖 UM244 对方向信号稳定时间的要求。
 #define BOARD_DIR_SETUP_HOLD_MS          5U
+// STEP 频率单位 Hz：自动默认 800Hz，回零默认 400Hz，手动 800Hz = 1mm/s。
 #define BOARD_STEPPER_AUTO_FREQ_HZ       800U
 #define BOARD_STEPPER_FALLBACK_FREQ_HZ   400U
 #define BOARD_STEPPER_MANUAL_FREQ_HZ     800U
 #define BOARD_STEPPER_HOMING_FREQ_HZ     400U
 #define BOARD_STEPPER_MAX_FREQ_HZ        5000U
+// 位置范围：框篮机械最大行程 100mm，内部位置以 pulse 保存。
 #define BOARD_BASKET_MAX_TRAVEL_MM       100U
 #define BOARD_BASKET_MAX_POSITION_PULSES (BOARD_BASKET_MAX_TRAVEL_MM * BOARD_STEPPER_PULSE_PER_MM)
+// 回零参数：先离开下限位 1mm，再二次低速靠近；搜索上限防止无止境运动。
 #define BOARD_HOMING_BACKOFF_MM          1U
 #define BOARD_HOMING_BACKOFF_PULSES      (BOARD_HOMING_BACKOFF_MM * BOARD_STEPPER_PULSE_PER_MM)
 #define BOARD_HOMING_SEARCH_CHUNK_PULSES 4000U
 #define BOARD_HOMING_MAX_SEARCH_PULSES   ((BOARD_BASKET_MAX_TRAVEL_MM + 5U) * BOARD_STEPPER_PULSE_PER_MM)
 #define BOARD_HOMING_RELEASE_WAIT_MS     100U
 
-/* Water depth and sensor health constants */
+// 水深和传感器健康参数。
+// 水深阈值单位为 mm，滤波样本数为最近有效压力读数个数。
 #define BOARD_WATER_FILTER_SAMPLES       5U
 #define BOARD_TANK_MIN_DEPTH_MM          250
 #define BOARD_TANK_MAX_DEPTH_MM          450
 #define BOARD_BASKET_MIN_SAFE_DEPTH_MM   5
 #define BOARD_BASKET_MAX_SAFE_DEPTH_MM   120
+// 水位突变阈值单位 mm/min；传感器或 I2C 连续失败达到阈值后进入故障处理。
 #define BOARD_WATER_JUMP_MM_PER_MIN      10
 #define BOARD_SENSOR_FAILURE_LIMIT       5U
 #define BOARD_I2C_RECOVERY_FAILURE_LIMIT 5U
+// 压力差换算水深低于 -2.0mm 视为物理异常，单位 mm_x10。
 #define BOARD_PRESSURE_PHYSICAL_MIN_MM_X10 (-20)
 
 #endif

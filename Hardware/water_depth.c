@@ -5,9 +5,11 @@
 
 typedef struct
 {
+	// 最近有效压力样本，单位 hPa_x100。
 	int32_t samples[BOARD_WATER_FILTER_SAMPLES];
 	uint8_t index;
 	uint8_t count;
+	// 用时间戳去重，避免同一笔传感器读数重复进入滤波。
 	uint32_t last_timestamp_ms;
 } WaterDepth_Filter_t;
 
@@ -18,11 +20,19 @@ static uint32_t s_jump_ref_ms;
 static int32_t s_jump_ref_basket_mm_x10;
 static int32_t s_jump_ref_tank_mm_x10;
 
+// 函    数：WaterDepth_IsSensorValid
+// 参    数：sensor WF5805F 传感器编号。
+// 返 回 值：1 表示编号有效，0 表示越界。
+// 注意事项：防止访问 s_filters 数组越界。
 static uint8_t WaterDepth_IsSensorValid(WF5805F_Sensor_t sensor)
 {
 	return ((uint8_t)sensor < (uint8_t)WF5805F_SENSOR_COUNT);
 }
 
+// 函    数：WaterDepth_FilterReset
+// 参    数：filter 需要复位的 5 点压力滤波器。
+// 返 回 值：无
+// 注意事项：清空样本计数和时间戳，后续必须重新收集有效压力读数。
 static void WaterDepth_FilterReset(WaterDepth_Filter_t *filter)
 {
 	uint8_t i;
@@ -37,12 +47,18 @@ static void WaterDepth_FilterReset(WaterDepth_Filter_t *filter)
 	filter->last_timestamp_ms = 0U;
 }
 
+// 函    数：WaterDepth_FilterAdd
+// 参    数：filter 压力滤波器；pressure_hpa_x100 有效压力，单位 hPa_x100；
+//           timestamp_ms 该压力读数的采样时间戳。
+// 返 回 值：无
+// 注意事项：同一时间戳样本只入队一次，避免主循环多次读取同一笔传感器数据污染平均值。
 static void WaterDepth_FilterAdd(WaterDepth_Filter_t *filter,
                                  int32_t pressure_hpa_x100,
                                  uint32_t timestamp_ms)
 {
 	if (timestamp_ms == filter->last_timestamp_ms)
 	{
+		// 同一传感器样本只允许进入滤波一次。
 		return;
 	}
 
@@ -61,6 +77,10 @@ static void WaterDepth_FilterAdd(WaterDepth_Filter_t *filter,
 	filter->last_timestamp_ms = timestamp_ms;
 }
 
+// 函    数：WaterDepth_FilterAverage
+// 参    数：filter 压力滤波器；pressure_hpa_x100 输出平均压力，单位 hPa_x100。
+// 返 回 值：1 表示已有至少一个有效样本，0 表示无有效平均值。
+// 注意事项：当前实现使用最近最多 5 个有效样本滑动平均，失败读数不会进入样本表。
 static uint8_t WaterDepth_FilterAverage(const WaterDepth_Filter_t *filter,
                                         int32_t *pressure_hpa_x100)
 {
@@ -82,15 +102,24 @@ static uint8_t WaterDepth_FilterAverage(const WaterDepth_Filter_t *filter,
 	return 1U;
 }
 
+// 函    数：WaterDepth_Abs
+// 参    数：value 有符号整数。
+// 返 回 值：绝对值。
+// 注意事项：用于水位突变比较，输入来自 mm_x10 差值。
 static int32_t WaterDepth_Abs(int32_t value)
 {
 	return (value < 0L) ? -value : value;
 }
 
+// 函    数：WaterDepth_CheckSensorFailures
+// 参    数：无
+// 返 回 值：无
+// 注意事项：连续失败达到阈值后置位错误管理器，严重故障由上层停止自动运动。
 static void WaterDepth_CheckSensorFailures(void)
 {
 	if (WF5805F_GetFailureCount(WF5805F_SENSOR_AIR) >= BOARD_SENSOR_FAILURE_LIMIT)
 	{
+		// 空气参考失效会让所有差压水深失去基准，必须停机报警。
 		ErrorManager_Set(ERROR_CODE_E_SENSOR_AIR_FAIL);
 	}
 	if (WF5805F_GetFailureCount(WF5805F_SENSOR_TANK) >= BOARD_SENSOR_FAILURE_LIMIT)
@@ -104,6 +133,7 @@ static void WaterDepth_CheckSensorFailures(void)
 
 	if (WF5805F_GetRecoveryFailureCount(WF5805F_SENSOR_AIR) >= BOARD_I2C_RECOVERY_FAILURE_LIMIT)
 	{
+		// I2C 恢复失败达到阈值后，不能继续等待总线自动恢复。
 		ErrorManager_Set(ERROR_CODE_E_I2C_A_FAIL);
 	}
 	if (WF5805F_GetRecoveryFailureCount(WF5805F_SENSOR_BASKET) >= BOARD_I2C_RECOVERY_FAILURE_LIMIT)
@@ -116,6 +146,10 @@ static void WaterDepth_CheckSensorFailures(void)
 	}
 }
 
+// 函    数：WaterDepth_UpdateFilterFromSensor
+// 参    数：sensor WF5805F 传感器编号。
+// 返 回 值：无
+// 注意事项：只把 WF5805F_OK 且 valid=1 的压力加入滤波，失败读数不参与水深计算。
 static void WaterDepth_UpdateFilterFromSensor(WF5805F_Sensor_t sensor)
 {
 	WF5805F_Reading_t reading;
@@ -128,16 +162,22 @@ static void WaterDepth_UpdateFilterFromSensor(WF5805F_Sensor_t sensor)
 	if ((WF5805F_GetReading(sensor, &reading) == WF5805F_OK) &&
 	    (reading.valid != 0U))
 	{
+		// 只把有效压力值加入滑动平均，失败读数不会污染水深计算。
 		WaterDepth_FilterAdd(&s_filters[sensor],
 		                     reading.pressure_hpa_x100,
 		                     reading.timestamp_ms);
 	}
 }
 
+// 函    数：WaterDepth_CheckRanges
+// 参    数：无
+// 返 回 值：无
+// 注意事项：水深单位为 mm_x10，阈值宏为 mm，因此比较前统一乘以 10。
 static void WaterDepth_CheckRanges(void)
 {
 	if (s_state.tank_depth_mm_x10 < ((int32_t)BOARD_TANK_MIN_DEPTH_MM * 10L))
 	{
+		// 鱼缸整体水深低于 250mm，自动运动需要停止。
 		ErrorManager_Set(ERROR_CODE_E_TANK_LOW);
 	}
 	if (s_state.tank_depth_mm_x10 > ((int32_t)BOARD_TANK_MAX_DEPTH_MM * 10L))
@@ -146,6 +186,7 @@ static void WaterDepth_CheckRanges(void)
 	}
 	if (s_state.basket_depth_mm_x10 < ((int32_t)BOARD_BASKET_MIN_SAFE_DEPTH_MM * 10L))
 	{
+		// 框篮水深低于 5mm 会影响鱼的最低安全活动水深。
 		ErrorManager_Set(ERROR_CODE_E_BASKET_LOW);
 	}
 	if (s_state.basket_depth_mm_x10 > ((int32_t)BOARD_BASKET_MAX_SAFE_DEPTH_MM * 10L))
@@ -154,15 +195,24 @@ static void WaterDepth_CheckRanges(void)
 	}
 }
 
+// 函    数：WaterDepth_CheckPhysical
+// 参    数：无
+// 返 回 值：无
+// 注意事项：差压换算为明显负水深时，优先认为传感器、封装或安装存在异常。
 static void WaterDepth_CheckPhysical(void)
 {
 	if ((s_state.basket_depth_mm_x10 < BOARD_PRESSURE_PHYSICAL_MIN_MM_X10) ||
 	    (s_state.tank_depth_mm_x10 < BOARD_PRESSURE_PHYSICAL_MIN_MM_X10))
 	{
+		// 差压换算为明显负水深时，优先认为传感器或安装存在异常。
 		ErrorManager_Set(ERROR_CODE_E_PRESSURE_PHYSICAL);
 	}
 }
 
+// 函    数：WaterDepth_CheckJump
+// 参    数：now_ms 系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：以 1 分钟为窗口检查水位突变，阈值单位为 mm/min，内部比较使用 mm_x10。
 static void WaterDepth_CheckJump(uint32_t now_ms)
 {
 	int32_t basket_delta;
@@ -173,6 +223,7 @@ static void WaterDepth_CheckJump(uint32_t now_ms)
 
 	if (s_jump_ref_valid == 0U)
 	{
+		// 首次有效水深作为 1 分钟突变检测基准。
 		s_jump_ref_valid = 1U;
 		s_jump_ref_ms = now_ms;
 		s_jump_ref_basket_mm_x10 = s_state.basket_depth_mm_x10;
@@ -182,6 +233,7 @@ static void WaterDepth_CheckJump(uint32_t now_ms)
 
 	if ((uint32_t)(now_ms - s_jump_ref_ms) < 60000U)
 	{
+		// 水位突变阈值单位为 mm/min，未满 1 分钟不做判断。
 		return;
 	}
 
@@ -190,6 +242,7 @@ static void WaterDepth_CheckJump(uint32_t now_ms)
 
 	if ((basket_delta > threshold_x10) || (tank_delta > threshold_x10))
 	{
+		// 1 分钟内超过 10mm 变化，按水位突变故障处理。
 		ErrorManager_Set(ERROR_CODE_E_WATER_JUMP);
 	}
 
@@ -198,11 +251,19 @@ static void WaterDepth_CheckJump(uint32_t now_ms)
 	s_jump_ref_tank_mm_x10 = s_state.tank_depth_mm_x10;
 }
 
+// 函    数：WaterDepth_ConvertPressureDiffToMmX10
+// 参    数：diff_hpa_x100 压力差，单位 hPa_x100。
+// 返 回 值：水深，单位 mm_x10。
+// 注意事项：diff_hpa_x100 * 10.197mm/hPa，再输出 mm_x10，避免浮点运算。
 int32_t WaterDepth_ConvertPressureDiffToMmX10(int32_t diff_hpa_x100)
 {
 	return (int32_t)(((int64_t)diff_hpa_x100 * 10197LL) / 10000LL);
 }
 
+// 函    数：WaterDepth_Init
+// 参    数：无
+// 返 回 值：无
+// 注意事项：复位所有滤波器和状态，初始化后 WaterDepth_GetState 返回 PENDING。
 void WaterDepth_Init(void)
 {
 	uint8_t i;
@@ -225,6 +286,10 @@ void WaterDepth_Init(void)
 	s_jump_ref_tank_mm_x10 = 0L;
 }
 
+// 函    数：WaterDepth_Update
+// 参    数：now_ms 系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：先检查传感器/I2C 健康，再更新滤波和水深；三路未齐全时不输出半成品水深。
 void WaterDepth_Update(uint32_t now_ms)
 {
 	int32_t air;
@@ -241,12 +306,14 @@ void WaterDepth_Update(uint32_t now_ms)
 	    (WaterDepth_FilterAverage(&s_filters[WF5805F_SENSOR_BASKET], &basket) == 0U) ||
 	    (WaterDepth_FilterAverage(&s_filters[WF5805F_SENSOR_TANK], &tank) == 0U))
 	{
+		// 三路传感器未全部有有效平均值前，不输出半成品水深。
 		return;
 	}
 
 	s_state.air_pressure_hpa_x100 = air;
 	s_state.basket_pressure_hpa_x100 = basket;
 	s_state.tank_pressure_hpa_x100 = tank;
+	// 框篮/鱼缸水深都使用各自压力减去空气参考压力。
 	s_state.basket_depth_mm_x10 = WaterDepth_ConvertPressureDiffToMmX10(basket - air);
 	s_state.tank_depth_mm_x10 = WaterDepth_ConvertPressureDiffToMmX10(tank - air);
 	s_state.valid = 1U;
@@ -257,6 +324,10 @@ void WaterDepth_Update(uint32_t now_ms)
 	WaterDepth_CheckJump(now_ms);
 }
 
+// 函    数：WaterDepth_GetState
+// 参    数：state 输出最近一次水深状态。
+// 返 回 值：WATER_DEPTH_OK 表示状态有效；WATER_DEPTH_PENDING 表示尚无完整水深；参数非法返回错误。
+// 注意事项：调用方必须检查返回值，不能在 PENDING 时使用默认 0 值做运动控制。
 WaterDepth_Status_t WaterDepth_GetState(WaterDepth_State_t *state)
 {
 	if (state == 0)
