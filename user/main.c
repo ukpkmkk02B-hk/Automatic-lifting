@@ -10,6 +10,7 @@
 #include "stepper_um244.h"
 #include "position_tracker.h"
 #include "homing.h"
+#include "param_store.h"
 
 static uint32_t g_app_ms;
 
@@ -181,6 +182,8 @@ int main(void)
 	Limit_Init();
 	KeyScan_Init();
 	ErrorManager_Init();
+	// 阶段 6：读取 Flash A/B 参数页；无有效记录时载入默认值并锁存 W_PARAM_DEFAULT。
+	(void)ParamStore_Init(g_app_ms);
 	StepperUM244_Init();
 	PositionTracker_Init();
 	Homing_Init();

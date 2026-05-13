@@ -148,4 +148,31 @@
 // 压力差换算水深低于 -2.0mm 视为物理异常，单位 mm_x10。
 #define BOARD_PRESSURE_PHYSICAL_MIN_MM_X10 (-20)
 
+// Flash 参数区：STM32F103C8T6 标称 64KB Flash，末尾两个 1KB 页用于 A/B 备份。
+// 注意事项：Keil IROM 必须限制为 0x08000000 + 0x0000F800，避免代码覆盖参数页。
+#define BOARD_FLASH_BASE_ADDR            0x08000000UL
+#define BOARD_FLASH_TOTAL_SIZE_BYTES     0x00010000UL
+#define BOARD_FLASH_PAGE_SIZE_BYTES      0x00000400UL
+#define BOARD_PARAM_FLASH_PAGE_A_ADDR    0x0800F800UL
+#define BOARD_PARAM_FLASH_PAGE_B_ADDR    0x0800FC00UL
+#define BOARD_PARAM_FLASH_PAGE_SIZE      BOARD_FLASH_PAGE_SIZE_BYTES
+#define BOARD_IROM_RESERVED_SIZE_BYTES   0x0000F800UL
+#define BOARD_IROM_END_ADDR              (BOARD_FLASH_BASE_ADDR + BOARD_IROM_RESERVED_SIZE_BYTES)
+
+// Flash 保存节流：运行状态最多每 10min 写入一次；关键状态切换使用强制保存接口。
+// 单位为 ms，禁止把每次 1 pulse 或 8 pulse 打盹动作直接绑定到 Flash 擦写。
+#define BOARD_PARAM_RUNTIME_SAVE_MS      600000UL
+
+// 持久化默认参数，水深单位为 mm_x10，脉冲单位为 pulse。
+// 目标范围 8..100mm；默认从 100mm 逐日变浅到 10mm，每日 1mm。
+#define BOARD_PARAM_MAGIC                0x414C4654UL
+#define BOARD_PARAM_VERSION              1U
+#define BOARD_TARGET_MIN_DEPTH_MM_X10    80
+#define BOARD_TARGET_MAX_DEPTH_MM_X10    1000
+#define BOARD_TARGET_DEFAULT_INITIAL_MM_X10 1000
+#define BOARD_TARGET_DEFAULT_FINAL_MM_X10   100
+#define BOARD_DAILY_SHALLOW_DEFAULT_MM_X10  10
+#define BOARD_DAILY_SHALLOW_MAX_MM_X10      20
+#define BOARD_RESTART_DEPTH_DIFF_MM_X10     30
+
 #endif
