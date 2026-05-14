@@ -162,3 +162,4 @@ After reboot, run self-test first. If the previous state was automatic, all sens
 
 
 //   ${workspaceFolder}/**
+//   "STM32F10X_MD",

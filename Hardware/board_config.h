@@ -92,6 +92,13 @@
 #define BOARD_KEY_LONG_MS                1000U
 #define BOARD_KEY_MAINTENANCE_MS         3000U
 
+// UI/菜单调度时间，单位 ms；OLED 刷新不放在中断中执行，避免软件 I2C 长时间占用安全路径。
+#define BOARD_UI_REFRESH_MS              250U
+// 参数页长按后的连续加减间隔，单位 ms；与按键消抖分离，避免单次按下修改过快。
+#define BOARD_UI_PARAM_REPEAT_MS         200U
+// 参数错误或维护风险提示的短鸣时长，单位 ms；静音故障不清除错误码。
+#define BOARD_UI_BEEP_MS                 80U
+
 // 有源蜂鸣器模块接 PA0，模块 I/O 为低电平触发。
 // 默认安全态：PA0 输出高电平关闭蜂鸣器；蜂鸣器静音不代表故障被清除。
 #define BOARD_BUZZER_GPIO                GPIOA
@@ -124,6 +131,8 @@
 #define BOARD_STEPPER_MANUAL_FREQ_HZ     800U
 #define BOARD_STEPPER_HOMING_FREQ_HZ     400U
 #define BOARD_STEPPER_MAX_FREQ_HZ        5000U
+// 手动点动采用有限脉冲小段连续触发，80 pulse @800Hz 约 100ms；松手后可立即停止后续小段。
+#define BOARD_STEPPER_MANUAL_CHUNK_PULSES 80U
 // 位置范围：框篮机械最大行程 100mm，内部位置以 pulse 保存。
 #define BOARD_BASKET_MAX_TRAVEL_MM       100U
 #define BOARD_BASKET_MAX_POSITION_PULSES (BOARD_BASKET_MAX_TRAVEL_MM * BOARD_STEPPER_PULSE_PER_MM)

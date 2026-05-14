@@ -467,7 +467,7 @@ ParamStore_Status_t ParamStore_ValidateRecord(const ParamStore_Record_t *record)
 		return PARAM_STORE_STATUS_ERROR_RANGE;
 	}
 
-	if ((record->daily_shallow_mm_x10 <= 0L) ||
+	if ((record->daily_shallow_mm_x10 < 0L) ||
 	    (record->daily_shallow_mm_x10 > BOARD_DAILY_SHALLOW_MAX_MM_X10))
 	{
 		return PARAM_STORE_STATUS_ERROR_RANGE;

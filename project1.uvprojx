@@ -805,6 +805,16 @@
               <FileType>5</FileType>
               <FilePath>.\Hardware\param_store.h</FilePath>
             </File>
+            <File>
+              <FileName>ui_pages.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\ui_pages.c</FilePath>
+            </File>
+            <File>
+              <FileName>menu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\menu.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
