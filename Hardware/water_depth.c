@@ -313,6 +313,7 @@ void WaterDepth_Update(uint32_t now_ms)
 	s_state.air_pressure_hpa_x100 = air;
 	s_state.basket_pressure_hpa_x100 = basket;
 	s_state.tank_pressure_hpa_x100 = tank;
+	// Stage 7 的 CAL AIR 只记录空气参考基线用于维护显示；水深仍严格使用实时 P_sensor - P_air 差压。
 	// 框篮/鱼缸水深都使用各自压力减去空气参考压力。
 	s_state.basket_depth_mm_x10 = WaterDepth_ConvertPressureDiffToMmX10(basket - air);
 	s_state.tank_depth_mm_x10 = WaterDepth_ConvertPressureDiffToMmX10(tank - air);

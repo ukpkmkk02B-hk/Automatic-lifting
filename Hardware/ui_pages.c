@@ -645,11 +645,13 @@ void UiPages_FormatManual(const UiPages_ManualContext_t *ctx, UiPages_Frame_t fr
 void UiPages_FormatAlarm(const UiPages_AlarmContext_t *ctx, UiPages_Frame_t frame)
 {
 	ErrorCode_t primary;
+	ErrorLevel_t level;
 	uint8_t count;
 	uint8_t muted;
 
 	UiPages_ClearFrame(frame);
 	primary = (ctx != 0) ? ctx->primary_error : ERROR_CODE_E_NONE;
+	level = (ctx != 0) ? ctx->primary_error_level : ERROR_LEVEL_NONE;
 	count = (ctx != 0) ? ctx->active_error_count : 0U;
 	muted = (ctx != 0) ? ctx->buzzer_muted : 0U;
 
@@ -670,7 +672,18 @@ void UiPages_FormatAlarm(const UiPages_AlarmContext_t *ctx, UiPages_Frame_t fram
 	UiPages_WriteUint(frame[2], 1U, 1U, (count > 0U) ? (uint32_t)(count - 1U) : 0UL);
 	UiPages_WriteText(frame[2], 3U, "MORE MUTE:");
 	frame[2][13] = (muted != 0U) ? 'Y' : 'N';
-	UiPages_WriteText(frame[3], 0U, (muted != 0U) ? "PB10 CLEAR" : "PB10 MUTE");
+	if (muted == 0U)
+	{
+		UiPages_WriteText(frame[3], 0U, "PB10 MUTE");
+	}
+	else if (level == ERROR_LEVEL_WARNING)
+	{
+		UiPages_WriteText(frame[3], 0U, "PB10 CLEAR");
+	}
+	else
+	{
+		UiPages_WriteText(frame[3], 0U, "FAULT LATCHED");
+	}
 }
 
 void UiPages_FormatMaintenance(const UiPages_MaintContext_t *ctx, UiPages_Frame_t frame)
@@ -683,7 +696,7 @@ void UiPages_FormatMaintenance(const UiPages_MaintContext_t *ctx, UiPages_Frame_
 	{
 		UiPages_WriteText(frame[0], 0U, "MAINT MENU 1/4");
 		UiPages_WriteText(frame[1], 0U, "1 CAL AIR");
-		UiPages_WriteText(frame[2], 0U, "2 HOME ZERO");
+		UiPages_WriteText(frame[2], 0U, "REF ----.--hPa");
 		UiPages_WriteText(frame[3], 0U, "PB10 OK PB0 BK");
 		return;
 	}
@@ -718,7 +731,12 @@ void UiPages_FormatMaintenance(const UiPages_MaintContext_t *ctx, UiPages_Frame_
 	{
 	case 0U:
 		UiPages_WriteText(frame[1], 0U, "1 CAL AIR");
-		UiPages_WriteText(frame[2], 0U, "SAVE OFFSET");
+		UiPages_WriteText(frame[2], 0U, "REF ");
+		UiPages_WritePressure4x2(frame[2],
+		                          4U,
+		                          ctx->air_reference_hpa_x100,
+		                          ctx->air_reference_valid);
+		UiPages_WriteText(frame[2], 11U, "hPa");
 		break;
 	case 1U:
 		UiPages_WriteText(frame[1], 0U, "2 HOME ZERO");

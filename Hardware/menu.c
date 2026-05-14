@@ -454,6 +454,7 @@ static void Menu_HandleMaintenanceOk(uint32_t now_ms)
 		if ((WF5805F_GetReading(WF5805F_SENSOR_AIR, &air) == WF5805F_OK) &&
 		    (air.valid != 0U))
 		{
+			// 维护校准只记录当前空气参考基线，Stage 7 水深仍使用实时 P_sensor - P_air 差压公式。
 			s_param_record.air_offset_hpa_x100 = air.pressure_hpa_x100;
 			(void)ParamStore_SaveParameters(&s_param_record);
 			Menu_LoadParams();
@@ -822,6 +823,7 @@ static void Menu_RenderAlarm(void)
 	UiPages_AlarmContext_t ctx;
 
 	ctx.primary_error = ErrorManager_GetPrimary();
+	ctx.primary_error_level = ErrorManager_GetLevel(ctx.primary_error);
 	ctx.active_error_count = Menu_CountActiveErrors();
 	ctx.buzzer_muted = ErrorManager_IsBuzzerMuted();
 	UiPages_RenderAlarm(&ctx);
@@ -839,6 +841,8 @@ static void Menu_RenderMaintenance(void)
 	ctx.motor_released = StepperUM244_IsMotorReleased();
 	ctx.position_trusted = PositionTracker_IsTrusted();
 	ctx.homing_busy = Homing_IsBusy();
+	ctx.air_reference_valid = (s_param_record.air_offset_hpa_x100 != 0L) ? 1U : 0U;
+	ctx.air_reference_hpa_x100 = s_param_record.air_offset_hpa_x100;
 
 	if (s_confirm != MENU_CONFIRM_NONE)
 	{

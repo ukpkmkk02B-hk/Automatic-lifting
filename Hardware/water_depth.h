@@ -55,7 +55,7 @@ WaterDepth_Status_t WaterDepth_GetState(WaterDepth_State_t *state);
 // 函    数：WaterDepth_ConvertPressureDiffToMmX10
 // 参    数：diff_hpa_x100 压力差，单位 hPa_x100。
 // 返 回 值：水深，单位 mm_x10。
-// 注意事项：按 1hPa≈10.197mmH2O 整数换算，避免使用浮点。
+// 注意事项：按实时 P_sensor - P_air 差压换算；维护页 CAL AIR 记录值只作基线显示，不参与本函数修正。
 int32_t WaterDepth_ConvertPressureDiffToMmX10(int32_t diff_hpa_x100);
 
 #endif

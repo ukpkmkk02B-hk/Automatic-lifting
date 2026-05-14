@@ -144,6 +144,7 @@ typedef struct
 typedef struct
 {
 	ErrorCode_t primary_error;
+	ErrorLevel_t primary_error_level;
 	uint8_t active_error_count;
 	uint8_t buzzer_muted;
 } UiPages_AlarmContext_t;
@@ -158,6 +159,8 @@ typedef struct
 	uint8_t motor_released;
 	uint8_t position_trusted;
 	uint8_t homing_busy;
+	uint8_t air_reference_valid;
+	int32_t air_reference_hpa_x100;
 } UiPages_MaintContext_t;
 
 // 函    数：UiPages_RenderFrame
