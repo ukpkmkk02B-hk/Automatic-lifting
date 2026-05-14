@@ -811,6 +811,21 @@
               <FilePath>.\Hardware\ui_pages.c</FilePath>
             </File>
             <File>
+              <FileName>nap_scheduler.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\nap_scheduler.c</FilePath>
+            </File>
+            <File>
+              <FileName>self_test.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\self_test.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_state.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\app_state.c</FilePath>
+            </File>
+            <File>
               <FileName>menu.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Hardware\menu.c</FilePath>

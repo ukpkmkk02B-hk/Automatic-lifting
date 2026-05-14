@@ -220,6 +220,8 @@ const char *ErrorManager_GetName(ErrorCode_t code)
 		return "E_POSITION_UNTRUSTED";
 	case ERROR_CODE_E_STALL:
 		return "E_STALL";
+	case ERROR_CODE_E_DEPTH_TRACKING:
+		return "E_DEPTH_TRACKING";
 	case ERROR_CODE_E_SELF_TEST_FAIL:
 		return "E_SELF_TEST_FAIL";
 	case ERROR_CODE_E_MOTOR_RELEASED:

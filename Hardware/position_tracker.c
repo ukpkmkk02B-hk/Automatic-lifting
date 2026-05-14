@@ -49,6 +49,33 @@ void PositionTracker_MarkHomed(void)
 	ErrorManager_Clear(ERROR_CODE_E_POSITION_UNTRUSTED);
 }
 
+// 函    数：PositionTracker_Restore
+// 参    数：pulses Flash 保存位置，单位 pulse；trusted 保存时位置可信标志。
+// 返 回 值：恢复可信返回 1，否则返回 0。
+// 注意事项：断电恢复只接受 0..最大行程内的可信位置，避免重启后追赶未知位移。
+uint8_t PositionTracker_Restore(int32_t pulses, uint8_t trusted)
+{
+	if (trusted == 0U)
+	{
+		PositionTracker_SetUntrusted(POSITION_TRACKER_UNTRUSTED_NOT_HOMED);
+		ErrorManager_Set(ERROR_CODE_E_POSITION_UNTRUSTED);
+		return 0U;
+	}
+
+	if ((pulses < 0L) || (pulses > PositionTracker_MaxPulses()))
+	{
+		s_position_pulses = 0L;
+		PositionTracker_MarkUntrusted(POSITION_TRACKER_UNTRUSTED_RANGE);
+		return 0U;
+	}
+
+	s_position_pulses = pulses;
+	s_position_trusted = 1U;
+	s_untrusted_reason = POSITION_TRACKER_UNTRUSTED_NONE;
+	ErrorManager_Clear(ERROR_CODE_E_POSITION_UNTRUSTED);
+	return 1U;
+}
+
 // 函    数：PositionTracker_MarkUntrusted
 // 参    数：reason 位置不可信原因。
 // 返 回 值：无

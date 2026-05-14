@@ -39,6 +39,12 @@ void PositionTracker_Init(void);
 // 注意事项：回零完成后调用，把当前位置设为 0 pulse，并清除位置不可信错误。
 void PositionTracker_MarkHomed(void);
 
+// 函    数：PositionTracker_Restore
+// 参    数：pulses Flash 保存的机械位置，单位 pulse；trusted 非 0 表示保存时位置可信。
+// 返 回 值：1 表示恢复为可信位置，0 表示保持或标记为不可信。
+// 注意事项：仅供开机自检后的断电恢复流程调用；越界位置会置位 E_POSITION_UNTRUSTED。
+uint8_t PositionTracker_Restore(int32_t pulses, uint8_t trusted);
+
 // 函    数：PositionTracker_MarkUntrusted
 // 参    数：reason 位置不可信原因。
 // 返 回 值：无

@@ -283,6 +283,8 @@ static const char *UiPages_ErrorAlias(ErrorCode_t code)
 		return "POS UNTR";
 	case ERROR_CODE_E_STALL:
 		return "STALL";
+	case ERROR_CODE_E_DEPTH_TRACKING:
+		return "DEPTH";
 	case ERROR_CODE_E_SELF_TEST_FAIL:
 		return "SELF FAIL";
 	case ERROR_CODE_E_MOTOR_RELEASED:
@@ -336,6 +338,8 @@ static const char *UiPages_ErrorCodeLabel(ErrorCode_t code)
 		return "E_POS_UNTRUST";
 	case ERROR_CODE_E_STALL:
 		return "E_STALL";
+	case ERROR_CODE_E_DEPTH_TRACKING:
+		return "E_DEPTH_TRACK";
 	case ERROR_CODE_E_SELF_TEST_FAIL:
 		return "E_SELF_TEST";
 	case ERROR_CODE_E_MOTOR_RELEASED:

@@ -47,8 +47,9 @@ static uint32_t s_last_refresh_ms;
 static uint32_t s_last_param_repeat_ms;
 static uint32_t s_beep_off_ms;
 static uint8_t s_manual_hold_active;
-static uint8_t s_manual_chunk_active;
 static StepperUM244_Direction_t s_manual_direction;
+static Menu_AppSnapshot_t s_app_snapshot;
+static Menu_Intents_t s_pending_intents;
 
 static uint8_t Menu_TimeElapsed(uint32_t now_ms, uint32_t last_ms, uint32_t interval_ms)
 {
@@ -65,6 +66,26 @@ static void Menu_RequestRenderNow(uint32_t now_ms)
 	{
 		s_last_refresh_ms = 0UL;
 	}
+}
+
+static void Menu_ClearIntents(Menu_Intents_t *intents)
+{
+	if (intents == 0)
+	{
+		return;
+	}
+
+	intents->start_auto = 0U;
+	intents->pause = 0U;
+	intents->alarm_ack = 0U;
+	intents->enter_maintenance = 0U;
+	intents->exit_maintenance = 0U;
+	intents->air_calibrate = 0U;
+	intents->home_zero = 0U;
+	intents->motor_release_toggle = 0U;
+	intents->params_saved = 0U;
+	intents->manual_up_hold = 0U;
+	intents->manual_down_hold = 0U;
 }
 
 static void Menu_StartShortBeep(uint32_t now_ms)
@@ -125,30 +146,6 @@ static uint8_t Menu_CountActiveErrors(void)
 	}
 
 	return count;
-}
-
-static void Menu_SaveRuntimeState(ParamStore_AppState_t state, uint32_t now_ms)
-{
-	ParamStore_Record_t record;
-	WaterDepth_State_t depth;
-
-	if (ParamStore_Load(&record) != PARAM_STORE_STATUS_OK)
-	{
-		ParamStore_LoadDefaults(&record);
-	}
-
-	record.last_app_state = (uint8_t)state;
-	record.buzzer_muted = ErrorManager_IsBuzzerMuted();
-	record.position_trusted = PositionTracker_IsTrusted();
-	record.basket_position_pulses = PositionTracker_GetPulses();
-	if (WaterDepth_GetState(&depth) == WATER_DEPTH_OK)
-	{
-		record.last_basket_depth_mm_x10 = depth.basket_depth_mm_x10;
-		record.last_tank_depth_mm_x10 = depth.tank_depth_mm_x10;
-	}
-
-	(void)ParamStore_ForceSaveRuntime(&record, now_ms);
-	Menu_LoadParams();
 }
 
 static void Menu_NextPage(void)
@@ -275,6 +272,7 @@ static void Menu_SaveParam(uint32_t now_ms)
 		s_param_dirty = 0U;
 		ErrorManager_Clear(ERROR_CODE_W_PARAM_REJECTED);
 		Menu_LoadParams();
+		s_pending_intents.params_saved = 1U;
 	}
 	else
 	{
@@ -308,65 +306,18 @@ static void Menu_ServiceParamRepeat(uint32_t now_ms)
 	}
 }
 
-static uint8_t Menu_ManualMoveAllowed(StepperUM244_Direction_t direction)
-{
-	if ((ErrorManager_HasFault() != 0U) && (s_in_maintenance == 0U))
-	{
-		return 0U;
-	}
-	if (StepperUM244_IsMotorReleased() != 0U)
-	{
-		return 0U;
-	}
-	if (Limit_IsSameDirectionMismatch() != 0U)
-	{
-		ErrorManager_Set(ERROR_CODE_E_LIMIT_MISMATCH);
-		return 0U;
-	}
-	if (direction == STEPPER_UM244_DIRECTION_UP)
-	{
-		return (Limit_IsDirectionBlocked(LIMIT_DIRECTION_UP) == 0U) ? 1U : 0U;
-	}
-
-	return (Limit_IsDirectionBlocked(LIMIT_DIRECTION_DOWN) == 0U) ? 1U : 0U;
-}
-
-static void Menu_ApplyManualCompleted(void)
-{
-	uint16_t pulses;
-
-	if ((s_manual_chunk_active == 0U) || (StepperUM244_IsBusy() != 0U))
-	{
-		return;
-	}
-
-	pulses = StepperUM244_GetCompletedPulses();
-	if (pulses != 0U)
-	{
-		PositionTracker_ApplyCompletedMove(s_manual_direction, pulses);
-	}
-	s_manual_chunk_active = 0U;
-}
-
 // 函    数：Menu_ServiceManualMove
 // 参    数：now_ms 当前系统毫秒时间戳。
 // 返 回 值：无
-// 注意事项：手动移动必须先收到长按事件；之后只要按键保持按下，就连续发送 80 pulse 有限小段，松手立即停止。
+// 注意事项：阶段 8 起菜单只维护“长按保持”意图，实际 STEP 输出由 app_state 统一执行。
 static void Menu_ServiceManualMove(uint32_t now_ms)
 {
 	uint8_t pressed;
-	StepperUM244_Status_t status;
 
 	(void)now_ms;
-	Menu_ApplyManualCompleted();
 
 	if (s_page != MENU_PAGE_MANUAL)
 	{
-		if (s_manual_hold_active != 0U)
-		{
-			StepperUM244_Stop();
-			Menu_ApplyManualCompleted();
-		}
 		s_manual_hold_active = 0U;
 		return;
 	}
@@ -375,68 +326,24 @@ static void Menu_ServiceManualMove(uint32_t now_ms)
 	{
 		return;
 	}
-
 	pressed = (s_manual_direction == STEPPER_UM244_DIRECTION_UP) ?
 	          KeyScan_IsPressed(KEY_SCAN_KEY2) :
 	          KeyScan_IsPressed(KEY_SCAN_KEY1);
 	if (pressed == 0U)
 	{
-		StepperUM244_Stop();
-		Menu_ApplyManualCompleted();
 		s_manual_hold_active = 0U;
 		return;
-	}
-
-	if ((s_manual_chunk_active == 0U) && (StepperUM244_IsBusy() == 0U))
-	{
-		if (Menu_ManualMoveAllowed(s_manual_direction) == 0U)
-		{
-			s_manual_hold_active = 0U;
-			return;
-		}
-		status = StepperUM244_StartPulses(s_manual_direction,
-		                                  BOARD_STEPPER_MANUAL_CHUNK_PULSES,
-		                                  BOARD_STEPPER_MANUAL_FREQ_HZ,
-		                                  now_ms);
-		if (status == STEPPER_UM244_STATUS_OK)
-		{
-			s_manual_chunk_active = 1U;
-		}
-		else if (status != STEPPER_UM244_STATUS_BUSY)
-		{
-			s_manual_hold_active = 0U;
-		}
 	}
 }
 
 static void Menu_HandleAlarmKey(uint32_t now_ms)
 {
-	ErrorCode_t primary;
-
-	primary = ErrorManager_GetPrimary();
-	if (primary == ERROR_CODE_E_NONE)
-	{
-		ErrorManager_SetBuzzerMuted(0U);
-		Buzzer_Off();
-		return;
-	}
-
-	if (ErrorManager_IsBuzzerMuted() == 0U)
-	{
-		ErrorManager_SetBuzzerMuted(1U);
-		Buzzer_Off();
-		Menu_SaveRuntimeState(PARAM_STORE_APP_FAULT, now_ms);
-	}
-	else if (ErrorManager_GetLevel(primary) == ERROR_LEVEL_WARNING)
-	{
-		ErrorManager_Clear(primary);
-	}
+	(void)now_ms;
+	s_pending_intents.alarm_ack = 1U;
 }
 
 static void Menu_HandleMaintenanceOk(uint32_t now_ms)
 {
-	WF5805F_Reading_t air;
-
 	if (s_in_maintenance == 0U)
 	{
 		return;
@@ -451,18 +358,7 @@ static void Menu_HandleMaintenanceOk(uint32_t now_ms)
 	switch (s_maintenance_menu_index)
 	{
 	case 0U:
-		if ((WF5805F_GetReading(WF5805F_SENSOR_AIR, &air) == WF5805F_OK) &&
-		    (air.valid != 0U))
-		{
-			// 维护校准只记录当前空气参考基线，Stage 7 水深仍使用实时 P_sensor - P_air 差压公式。
-			s_param_record.air_offset_hpa_x100 = air.pressure_hpa_x100;
-			(void)ParamStore_SaveParameters(&s_param_record);
-			Menu_LoadParams();
-		}
-		else
-		{
-			Menu_StartShortBeep(now_ms);
-		}
+		s_pending_intents.air_calibrate = 1U;
 		break;
 	case 1U:
 		Menu_StartConfirm(MENU_CONFIRM_HOME_ZERO, MENU_PAGE_MAINTENANCE);
@@ -479,6 +375,8 @@ static void Menu_HandleMaintenanceOk(uint32_t now_ms)
 
 static void Menu_HandleConfirm(uint32_t now_ms, uint16_t key_events)
 {
+	(void)now_ms;
+
 	if ((key_events & KEY_SCAN_EVENT_PAGE_SHORT) != 0U)
 	{
 		s_confirm = MENU_CONFIRM_NONE;
@@ -497,25 +395,14 @@ static void Menu_HandleConfirm(uint32_t now_ms, uint16_t key_events)
 		s_in_maintenance = 1U;
 		s_page = MENU_PAGE_MAINTENANCE;
 		s_maintenance_debug = 0U;
-		Menu_SaveRuntimeState(PARAM_STORE_APP_MAINTENANCE, now_ms);
+		s_pending_intents.enter_maintenance = 1U;
 		break;
 	case MENU_CONFIRM_HOME_ZERO:
-		(void)Homing_Start(now_ms);
-		Menu_SaveRuntimeState(PARAM_STORE_APP_MAINTENANCE, now_ms);
+		s_pending_intents.home_zero = 1U;
 		s_page = MENU_PAGE_MAINTENANCE;
 		break;
 	case MENU_CONFIRM_MOTOR_RELEASE:
-		if (StepperUM244_IsMotorReleased() == 0U)
-		{
-			StepperUM244_SetMotorRelease(1U);
-			PositionTracker_MarkUntrusted(POSITION_TRACKER_UNTRUSTED_MOTOR_RELEASED);
-			Menu_SaveRuntimeState(PARAM_STORE_APP_MOTOR_RELEASE, now_ms);
-		}
-		else
-		{
-			StepperUM244_SetMotorRelease(0U);
-			Menu_SaveRuntimeState(PARAM_STORE_APP_MAINTENANCE, now_ms);
-		}
+		s_pending_intents.motor_release_toggle = 1U;
 		s_page = MENU_PAGE_MAINTENANCE;
 		break;
 	default:
@@ -533,8 +420,7 @@ static void Menu_HandleKeys(uint32_t now_ms, uint16_t key_events)
 		{
 			s_in_maintenance = 0U;
 			s_maintenance_debug = 0U;
-			StepperUM244_SetMotorRelease(0U);
-			Menu_SaveRuntimeState(PARAM_STORE_APP_PAUSED, now_ms);
+			s_pending_intents.exit_maintenance = 1U;
 			s_page = MENU_PAGE_MAIN;
 		}
 		else
@@ -564,6 +450,25 @@ static void Menu_HandleKeys(uint32_t now_ms, uint16_t key_events)
 	if ((key_events & KEY_SCAN_EVENT_PAGE_SHORT) != 0U)
 	{
 		Menu_NextPage();
+	}
+
+	if ((key_events & KEY_SCAN_EVENT_PAUSE_SHORT) != 0U)
+	{
+		if (ErrorManager_HasFault() != 0U)
+		{
+			s_pending_intents.alarm_ack = 1U;
+		}
+		else if ((s_page == MENU_PAGE_MAIN) && (s_app_snapshot.valid != 0U))
+		{
+			if (s_app_snapshot.mode == UI_PAGES_MODE_PAUSED)
+			{
+				s_pending_intents.start_auto = 1U;
+			}
+			else if (s_app_snapshot.mode == UI_PAGES_MODE_AUTO)
+			{
+				s_pending_intents.pause = 1U;
+			}
+		}
 	}
 
 	if (s_page == MENU_PAGE_PARAM)
@@ -649,6 +554,10 @@ static UiPages_Mode_t Menu_GetDisplayMode(void)
 	{
 		return UI_PAGES_MODE_SELF_TEST;
 	}
+	if (s_app_snapshot.valid != 0U)
+	{
+		return s_app_snapshot.mode;
+	}
 
 	return UI_PAGES_MODE_AUTO;
 }
@@ -661,36 +570,50 @@ static void Menu_RenderMain(void)
 
 	ctx.basket_depth_valid = 0U;
 	ctx.tank_depth_valid = 0U;
-	ctx.target_depth_valid = 1U;
-	ctx.target_depth_mm_x10 = s_param_record.initial_target_mm_x10;
-	run_days = (s_param_record.total_run_seconds / 86400UL) + 1UL;
-	if (run_days > 999UL)
+	if (s_app_snapshot.valid != 0U)
 	{
-		run_days = 999UL;
-	}
-	ctx.run_days = (uint16_t)run_days;
-	ctx.mode = Menu_GetDisplayMode();
-	if (ErrorManager_HasFault() != 0U)
-	{
-		ctx.motion_text = "STOP";
-	}
-	else if (s_in_maintenance != 0U)
-	{
-		ctx.motion_text = "IDLE";
-	}
-	else if (s_page == MENU_PAGE_MANUAL)
-	{
-		ctx.motion_text = "JOG";
+		ctx.target_depth_valid = s_app_snapshot.target_depth_valid;
+		ctx.target_depth_mm_x10 = s_app_snapshot.target_depth_mm_x10;
+		ctx.run_days = s_app_snapshot.run_days;
+		ctx.motion_text = s_app_snapshot.motion_text;
+		ctx.next_nap_valid = s_app_snapshot.next_nap_valid;
+		ctx.next_nap_remaining_s = s_app_snapshot.next_nap_remaining_s;
+		ctx.today_done_pulses = s_app_snapshot.today_done_pulses;
+		ctx.nap_pulses = s_app_snapshot.nap_pulses;
 	}
 	else
 	{
-		ctx.motion_text = "RUN";
+		ctx.target_depth_valid = 1U;
+		ctx.target_depth_mm_x10 = s_param_record.initial_target_mm_x10;
+		run_days = (s_param_record.total_run_seconds / 86400UL) + 1UL;
+		if (run_days > 999UL)
+		{
+			run_days = 999UL;
+		}
+		ctx.run_days = (uint16_t)run_days;
+		ctx.next_nap_valid = 0U;
+		ctx.next_nap_remaining_s = 0UL;
+		ctx.today_done_pulses = (s_param_record.today_pulses_done > 999UL) ?
+		                        999U : (uint16_t)s_param_record.today_pulses_done;
+		ctx.nap_pulses = s_param_record.nap_pulses;
+		if (ErrorManager_HasFault() != 0U)
+		{
+			ctx.motion_text = "STOP";
+		}
+		else if (s_in_maintenance != 0U)
+		{
+			ctx.motion_text = "IDLE";
+		}
+		else if (s_page == MENU_PAGE_MANUAL)
+		{
+			ctx.motion_text = "JOG";
+		}
+		else
+		{
+			ctx.motion_text = "RUN";
+		}
 	}
-	ctx.next_nap_valid = 0U;
-	ctx.next_nap_remaining_s = 0UL;
-	ctx.today_done_pulses = (s_param_record.today_pulses_done > 999UL) ?
-	                        999U : (uint16_t)s_param_record.today_pulses_done;
-	ctx.nap_pulses = s_param_record.nap_pulses;
+	ctx.mode = Menu_GetDisplayMode();
 	ctx.primary_error = ErrorManager_GetPrimary();
 	ctx.buzzer_muted = ErrorManager_IsBuzzerMuted();
 
@@ -713,6 +636,13 @@ static void Menu_RenderMain(void)
 static void Menu_RenderSelfTest(void)
 {
 	UiPages_SelfTestContext_t ctx;
+
+	if (s_app_snapshot.valid != 0U)
+	{
+		ctx = s_app_snapshot.self_test;
+		UiPages_RenderSelfTest(&ctx);
+		return;
+	}
 
 	ctx.seconds_left_valid = 0U;
 	ctx.seconds_left = 0U;
@@ -873,6 +803,12 @@ static void Menu_RenderMaintenance(void)
 
 static void Menu_RenderCurrent(void)
 {
+	if ((s_app_snapshot.valid != 0U) && (s_app_snapshot.force_self_test_page != 0U))
+	{
+		Menu_RenderSelfTest();
+		return;
+	}
+
 	switch (s_page)
 	{
 	case MENU_PAGE_SELF_TEST:
@@ -918,10 +854,53 @@ void Menu_Init(uint32_t now_ms)
 	s_last_param_repeat_ms = now_ms;
 	s_beep_off_ms = 0UL;
 	s_manual_hold_active = 0U;
-	s_manual_chunk_active = 0U;
 	s_manual_direction = STEPPER_UM244_DIRECTION_DOWN;
+	s_app_snapshot.valid = 0U;
+	s_app_snapshot.force_self_test_page = 0U;
+	Menu_ClearIntents(&s_pending_intents);
 	Menu_LoadParams();
 	Menu_RequestRenderNow(now_ms);
+}
+
+void Menu_SetAppSnapshot(const Menu_AppSnapshot_t *snapshot)
+{
+	if (snapshot == 0)
+	{
+		s_app_snapshot.valid = 0U;
+		return;
+	}
+	s_app_snapshot = *snapshot;
+}
+
+void Menu_GetIntents(Menu_Intents_t *intents)
+{
+	if (intents == 0)
+	{
+		Menu_ClearIntents(&s_pending_intents);
+		return;
+	}
+
+	*intents = s_pending_intents;
+	if ((s_page == MENU_PAGE_MANUAL) && (s_manual_hold_active != 0U))
+	{
+		if ((s_manual_direction == STEPPER_UM244_DIRECTION_UP) &&
+		    (KeyScan_IsPressed(KEY_SCAN_KEY2) != 0U))
+		{
+			intents->manual_up_hold = 1U;
+		}
+		else if ((s_manual_direction == STEPPER_UM244_DIRECTION_DOWN) &&
+		         (KeyScan_IsPressed(KEY_SCAN_KEY1) != 0U))
+		{
+			intents->manual_down_hold = 1U;
+		}
+	}
+
+	Menu_ClearIntents(&s_pending_intents);
+}
+
+void Menu_ReloadParams(void)
+{
+	Menu_LoadParams();
 }
 
 void Menu_Update(uint32_t now_ms, uint16_t key_events)

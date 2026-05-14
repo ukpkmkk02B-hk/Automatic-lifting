@@ -98,6 +98,10 @@
 #define BOARD_UI_PARAM_REPEAT_MS         200U
 // 参数错误或维护风险提示的短鸣时长，单位 ms；静音故障不清除错误码。
 #define BOARD_UI_BEEP_MS                 80U
+// 阶段 8 开机自检时间，单位 ms；传感器稳定等待由主状态机轮询推进，不允许 Delay 阻塞。
+#define BOARD_SELF_TEST_SENSOR_STABLE_MS 10000UL
+// 开机自检蜂鸣器短鸣时间，单位 ms；只验证蜂鸣器可控，不清除故障锁存。
+#define BOARD_SELF_TEST_BEEP_MS          80U
 
 // 有源蜂鸣器模块接 PA0，模块 I/O 为低电平触发。
 // 默认安全态：PA0 输出高电平关闭蜂鸣器；蜂鸣器静音不代表故障被清除。
@@ -123,6 +127,20 @@
 // 自动打盹单次脉冲范围，单位 pulse；8 pulse 约等于 0.01mm，最大不超过 16 pulse。
 #define BOARD_NAP_DEFAULT_PULSES         8U
 #define BOARD_NAP_MAX_PULSES             16U
+// 自动打盹最小间隔，单位 ms；防止菜单参数导致唤醒过于频繁。
+#define BOARD_NAP_MIN_INTERVAL_MS        300000UL
+// 自动目标水深允许误差，单位 mm_x10；超过 ±1.0mm 后续阶段应暂停报警。
+#define BOARD_CONTROL_TOLERANCE_MM_X10   10
+// 自动打盹前后等待新鲜水深读数的最长时间，单位 ms；超时说明传感器链路不能支撑安全运动确认。
+#define BOARD_NAP_SENSOR_FRESH_TIMEOUT_MS 5000UL
+// 自动打盹完成后，允许水深滤波更新的轮询保护时间，单位 ms；不得用 Delay 等待。
+#define BOARD_NAP_POST_DEPTH_TIMEOUT_MS  5000UL
+// 无 RTC，运行日固定按上电累计秒数折算。
+#define BOARD_SECONDS_PER_DAY            86400UL
+// 卡滞趋势检查阈值：累计 1mm 后期望水深至少同向变化约 1mm，连续 8 次为严重故障。
+#define BOARD_STALL_CHECK_PULSES         BOARD_STEPPER_PULSE_PER_MM
+#define BOARD_STALL_EXPECTED_DELTA_MM_X10 10
+#define BOARD_STALL_FAILURE_LIMIT        8U
 // DIR 建立/保持时间单位 ms，必须覆盖 UM244 对方向信号稳定时间的要求。
 #define BOARD_DIR_SETUP_HOLD_MS          5U
 // STEP 频率单位 Hz：自动默认 800Hz，回零默认 400Hz，手动 800Hz = 1mm/s。

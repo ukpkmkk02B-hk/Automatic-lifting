@@ -12,6 +12,7 @@
 #include "homing.h"
 #include "param_store.h"
 #include "menu.h"
+#include "app_state.h"
 
 static uint32_t g_app_ms;
 
@@ -86,7 +87,7 @@ int main(void)
 	WF5805F_InitAll();
 	OLED_Init();
 	OLED_Clear();
-	Menu_Init(g_app_ms);
+	AppState_Init(g_app_ms);
 	
 	while (1)
 	{
@@ -102,7 +103,7 @@ int main(void)
 		WaterDepth_Update(g_app_ms);
 
 		key_events = KeyScan_GetEvents();
-		// Stage 7：菜单统一处理 OLED 页面、参数编辑、报警静音和维护入口。
-		Menu_Update(g_app_ms, key_events);
+		// 阶段 8：主状态机接管自检、恢复、自动打盹、故障优先级和菜单意图。
+		AppState_Update(g_app_ms, key_events);
 	}
 }
