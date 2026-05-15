@@ -44,6 +44,8 @@ static uint16_t s_nap_pulses;
 static uint8_t s_manual_chunk_active;
 static StepperUM244_Direction_t s_manual_direction;
 
+static void AppState_ApplyManualCompleted(void);
+
 static ParamStore_AppState_t AppState_ToStoredState(AppState_State_t state)
 {
 	switch (state)
@@ -129,6 +131,15 @@ static uint8_t AppState_IsAutoStoredState(uint8_t state)
 	        (state == (uint8_t)PARAM_STORE_APP_NAP_MOVE)) ? 1U : 0U;
 }
 
+// 恢复关键状态入口必须先停 STEP，避免自动/手动脉冲跨状态继续输出。
+static uint8_t AppState_ShouldStopBeforeEnter(AppState_State_t state)
+{
+	return ((state == APP_STATE_FAULT) ||
+	        (state == APP_STATE_PAUSED) ||
+	        (state == APP_STATE_MAINTENANCE) ||
+	        (state == APP_STATE_MOTOR_RELEASE)) ? 1U : 0U;
+}
+
 static void AppState_LoadRecord(void)
 {
 	if (ParamStore_Load(&s_record) != PARAM_STORE_STATUS_OK)
@@ -187,10 +198,11 @@ static void AppState_Enter(AppState_State_t state, uint32_t now_ms)
 		return;
 	}
 
-	if ((state == APP_STATE_FAULT) || (state == APP_STATE_PAUSED))
+	if (AppState_ShouldStopBeforeEnter(state) != 0U)
 	{
+		// 进入恢复关键状态前先切断 STEP；若中断的是手动点动，随后按已输出 pulse 结算位置。
 		StepperUM244_Stop();
-		s_manual_chunk_active = 0U;
+		AppState_ApplyManualCompleted();
 	}
 
 	s_state = state;
@@ -264,12 +276,136 @@ static uint8_t AppState_CheckDepthTolerance(void)
 	error_mm_x10 = depth.basket_depth_mm_x10 - NapScheduler_GetTargetDepthMmX10();
 	if (AppState_Abs32(error_mm_x10) > BOARD_CONTROL_TOLERANCE_MM_X10)
 	{
-		// 自动控制误差超过 ±1mm 时停止自动，避免按错误目标继续移动。
+		// 自动控制误差超过 ±1mm 时报警暂停；本版本不自动向下纠偏，避免错误追调。
 		ErrorManager_Set(ERROR_CODE_E_DEPTH_TRACKING);
 		return 0U;
 	}
 
 	return 1U;
+}
+
+static uint8_t AppState_BlockFaultClearIf(uint8_t condition, ErrorCode_t code)
+{
+	if (condition != 0U)
+	{
+		ErrorManager_Set(code);
+		return 1U;
+	}
+
+	return 0U;
+}
+
+static uint8_t AppState_CanClearLatchedFaults(void)
+{
+	WaterDepth_State_t depth;
+	uint8_t blocked;
+	int32_t target_error_mm_x10;
+
+	blocked = 0U;
+
+	// 第二次确认前复查仍可观测的硬件/状态根因；根因还在时只允许静音，不允许 ClearAll()。
+	if (AppState_BlockFaultClearIf((StepperUM244_IsMotorReleased() != 0U) ? 1U : 0U,
+	                               ERROR_CODE_E_MOTOR_RELEASED) != 0U)
+	{
+		blocked = 1U;
+	}
+	if (AppState_BlockFaultClearIf((Limit_IsSameDirectionMismatch() != 0U) ? 1U : 0U,
+	                               ERROR_CODE_E_LIMIT_MISMATCH) != 0U)
+	{
+		blocked = 1U;
+	}
+	if (AppState_BlockFaultClearIf(((Limit_IsAnyUpperActive() != 0U) ||
+	                                (Limit_IsRawDirectionActive(LIMIT_DIRECTION_UP) != 0U)) ? 1U : 0U,
+	                               ERROR_CODE_E_UPPER_LIMIT) != 0U)
+	{
+		blocked = 1U;
+	}
+	if (AppState_BlockFaultClearIf(((Limit_IsAnyLowerActive() != 0U) ||
+	                                (Limit_IsRawDirectionActive(LIMIT_DIRECTION_DOWN) != 0U)) ? 1U : 0U,
+	                               ERROR_CODE_E_LOWER_LIMIT) != 0U)
+	{
+		blocked = 1U;
+	}
+	if (AppState_BlockFaultClearIf((PositionTracker_CanAutoRun() == 0U) ? 1U : 0U,
+	                               ERROR_CODE_E_POSITION_UNTRUSTED) != 0U)
+	{
+		blocked = 1U;
+	}
+
+	if (AppState_BlockFaultClearIf((WF5805F_GetFailureCount(WF5805F_SENSOR_AIR) >= BOARD_SENSOR_FAILURE_LIMIT) ? 1U : 0U,
+	                               ERROR_CODE_E_SENSOR_AIR_FAIL) != 0U)
+	{
+		blocked = 1U;
+	}
+	if (AppState_BlockFaultClearIf((WF5805F_GetFailureCount(WF5805F_SENSOR_TANK) >= BOARD_SENSOR_FAILURE_LIMIT) ? 1U : 0U,
+	                               ERROR_CODE_E_SENSOR_TANK_FAIL) != 0U)
+	{
+		blocked = 1U;
+	}
+	if (AppState_BlockFaultClearIf((WF5805F_GetFailureCount(WF5805F_SENSOR_BASKET) >= BOARD_SENSOR_FAILURE_LIMIT) ? 1U : 0U,
+	                               ERROR_CODE_E_SENSOR_BASKET_FAIL) != 0U)
+	{
+		blocked = 1U;
+	}
+	if (AppState_BlockFaultClearIf((WF5805F_GetRecoveryFailureCount(WF5805F_SENSOR_AIR) >= BOARD_I2C_RECOVERY_FAILURE_LIMIT) ? 1U : 0U,
+	                               ERROR_CODE_E_I2C_A_FAIL) != 0U)
+	{
+		blocked = 1U;
+	}
+	if (AppState_BlockFaultClearIf((WF5805F_GetRecoveryFailureCount(WF5805F_SENSOR_BASKET) >= BOARD_I2C_RECOVERY_FAILURE_LIMIT) ? 1U : 0U,
+	                               ERROR_CODE_E_I2C_B_FAIL) != 0U)
+	{
+		blocked = 1U;
+	}
+	if (AppState_BlockFaultClearIf((WF5805F_GetRecoveryFailureCount(WF5805F_SENSOR_TANK) >= BOARD_I2C_RECOVERY_FAILURE_LIMIT) ? 1U : 0U,
+	                               ERROR_CODE_E_I2C_C_FAIL) != 0U)
+	{
+		blocked = 1U;
+	}
+
+	if (WaterDepth_GetState(&depth) != WATER_DEPTH_OK)
+	{
+		ErrorManager_Set(ERROR_CODE_E_DEPTH_TRACKING);
+		blocked = 1U;
+	}
+	else
+	{
+		if (AppState_BlockFaultClearIf((depth.tank_depth_mm_x10 < ((int32_t)BOARD_TANK_MIN_DEPTH_MM * 10L)) ? 1U : 0U,
+		                               ERROR_CODE_E_TANK_LOW) != 0U)
+		{
+			blocked = 1U;
+		}
+		if (AppState_BlockFaultClearIf((depth.tank_depth_mm_x10 > ((int32_t)BOARD_TANK_MAX_DEPTH_MM * 10L)) ? 1U : 0U,
+		                               ERROR_CODE_E_TANK_HIGH) != 0U)
+		{
+			blocked = 1U;
+		}
+		if (AppState_BlockFaultClearIf((depth.basket_depth_mm_x10 < ((int32_t)BOARD_BASKET_MIN_SAFE_DEPTH_MM * 10L)) ? 1U : 0U,
+		                               ERROR_CODE_E_BASKET_LOW) != 0U)
+		{
+			blocked = 1U;
+		}
+		if (AppState_BlockFaultClearIf((depth.basket_depth_mm_x10 > ((int32_t)BOARD_BASKET_MAX_SAFE_DEPTH_MM * 10L)) ? 1U : 0U,
+		                               ERROR_CODE_E_BASKET_HIGH) != 0U)
+		{
+			blocked = 1U;
+		}
+		if (AppState_BlockFaultClearIf(((depth.basket_depth_mm_x10 < BOARD_PRESSURE_PHYSICAL_MIN_MM_X10) ||
+		                                (depth.tank_depth_mm_x10 < BOARD_PRESSURE_PHYSICAL_MIN_MM_X10)) ? 1U : 0U,
+		                               ERROR_CODE_E_PRESSURE_PHYSICAL) != 0U)
+		{
+			blocked = 1U;
+		}
+
+		target_error_mm_x10 = depth.basket_depth_mm_x10 - NapScheduler_GetTargetDepthMmX10();
+		if (AppState_BlockFaultClearIf((AppState_Abs32(target_error_mm_x10) > BOARD_CONTROL_TOLERANCE_MM_X10) ? 1U : 0U,
+		                               ERROR_CODE_E_DEPTH_TRACKING) != 0U)
+		{
+			blocked = 1U;
+		}
+	}
+
+	return (blocked == 0U) ? 1U : 0U;
 }
 
 static uint8_t AppState_CheckAutoSafety(uint8_t require_depth)
@@ -461,13 +597,11 @@ static void AppState_ApplyManualCompleted(void)
 		return;
 	}
 
-	if (StepperUM244_GetStopReason() == STEPPER_UM244_STOP_PULSE_DONE)
+	pulses = StepperUM244_GetCompletedPulses();
+	if (pulses != 0U)
 	{
-		pulses = StepperUM244_GetCompletedPulses();
-		if (pulses != 0U)
-		{
-			PositionTracker_ApplyCompletedMove(s_manual_direction, pulses);
-		}
+		// 手动松手、暂停或故障前已经输出的 STEP 都代表真实位移，不能只在整段完成时结算。
+		PositionTracker_ApplyCompletedMove(s_manual_direction, pulses);
 	}
 	s_manual_chunk_active = 0U;
 }
@@ -621,7 +755,16 @@ static void AppState_HandleAlarmAck(uint32_t now_ms)
 		return;
 	}
 
-	// 第二次确认执行受控清除；若真实故障仍存在，底层轮询会在后续周期重新置位。
+	if (AppState_CanClearLatchedFaults() == 0U)
+	{
+		// 第二次确认时若限位、传感器/I2C、水位、位置或电机释放仍异常，只保持静音和故障态。
+		ErrorManager_SetBuzzerMuted(1U);
+		AppState_SaveState(now_ms);
+		AppState_Enter(APP_STATE_FAULT, now_ms);
+		return;
+	}
+
+	// 第二次确认仅在根因不可继续观测到时执行受控清除；静音本身不清故障。
 	ErrorManager_ClearAll();
 	ErrorManager_SetBuzzerMuted(0U);
 	StepperUM244_ClearFault();
@@ -667,6 +810,7 @@ static void AppState_BeginNapMove(uint32_t now_ms)
 {
 	s_nap_phase = APP_NAP_PHASE_PRE_DEPTH;
 	s_nap_phase_start_ms = now_ms;
+	// 本版本打盹只做向上变浅；水深超出目标 ±1mm 时报警暂停，等待人工确认，不自动向下追调。
 	s_nap_direction = STEPPER_UM244_DIRECTION_UP;
 	s_nap_pulses = NapScheduler_GetNextPulses();
 }

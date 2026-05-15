@@ -6,6 +6,7 @@
 // 模    块：非阻塞按键扫描模块
 // 硬件假设：PB1/PB11/PB10/PB0 为低有效输入，使用 MCU 上拉。
 // 时间单位：所有按键时间均为 ms；25ms 消抖，25-1000ms 短按，>=1000ms 长按。
+// 长按事件：PB1/PB11 达到 1000ms 时立即上报一次，便于手动点动；其他普通长按在释放沿确认。
 // 特殊事件：PB10 >=3000ms 额外产生维护入口事件，且释放时不再重复上报普通长按。
 
 typedef enum
@@ -41,7 +42,7 @@ void KeyScan_Init(void);
 // 函    数：KeyScan_Update
 // 参    数：now_ms 系统毫秒时间戳。
 // 返 回 值：无
-// 注意事项：按 BOARD_KEY_SCAN_PERIOD_MS 周期扫描，消抖后才生成短按/长按事件。
+// 注意事项：按 BOARD_KEY_SCAN_PERIOD_MS 周期扫描；PB1/PB11 长按保持期间上报一次，短按在释放时确认。
 void KeyScan_Update(uint32_t now_ms);
 
 // 函    数：KeyScan_GetEvents

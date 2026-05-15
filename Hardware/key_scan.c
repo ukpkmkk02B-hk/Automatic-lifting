@@ -15,6 +15,7 @@ typedef struct
     uint8_t stable_pressed;
     uint8_t pending_pressed;
     uint8_t maintenance_reported;
+    uint8_t long_reported;
     uint32_t pending_since_ms;
     uint32_t pressed_since_ms;
 } KeyScan_State_t;
@@ -31,6 +32,15 @@ static KeyScan_State_t s_key_state[KEY_SCAN_COUNT];
 static uint32_t s_last_scan_ms;
 static uint16_t s_events;
 static uint8_t s_initialized;
+
+// 函    数：KeyScan_ReportLongWhileHeld
+// 参    数：key 按键编号，范围为 KeyScan_Key_t。
+// 返 回 值：1 表示普通长按需要在仍按住时上报，0 表示按释放沿上报。
+// 注意事项：PB1/PB11 手动点动依赖“达到长按阈值即开始运动”，不能等到松手后才出事件。
+static uint8_t KeyScan_ReportLongWhileHeld(KeyScan_Key_t key)
+{
+    return ((key == KEY_SCAN_KEY1) || (key == KEY_SCAN_KEY2)) ? 1U : 0U;
+}
 
 // 函    数：KeyScan_TimeElapsed
 // 参    数：now_ms 当前毫秒时间戳；then_ms 起始时间戳；interval_ms 目标间隔。
@@ -61,7 +71,7 @@ static uint8_t KeyScan_ReadRawPin(KeyScan_Key_t key)
 // 函    数：KeyScan_HandleStableChange
 // 参    数：key 按键编号；now_ms 当前毫秒时间戳；pressed 消抖后的稳定按下状态。
 // 返 回 值：无
-// 注意事项：按下沿只记录时间；短按/长按在释放沿根据持续时间生成事件。
+// 注意事项：按下沿记录时间并清除一次性锁存；释放沿只生成尚未上报的短按/长按事件。
 static void KeyScan_HandleStableChange(KeyScan_Key_t key, uint32_t now_ms, uint8_t pressed)
 {
     uint32_t held_ms;
@@ -70,9 +80,10 @@ static void KeyScan_HandleStableChange(KeyScan_Key_t key, uint32_t now_ms, uint8
 
     if (pressed != 0U)
     {
-        // 按下沿只记录起始时间；短按/长按在释放后再生成事件。
+        // 按下沿记录起始时间；PB1/PB11 普通长按会在保持按下时由 KeyScan_Update 上报一次。
         s_key_state[key].pressed_since_ms = now_ms;
         s_key_state[key].maintenance_reported = 0U;
+        s_key_state[key].long_reported = 0U;
         return;
     }
 
@@ -80,6 +91,11 @@ static void KeyScan_HandleStableChange(KeyScan_Key_t key, uint32_t now_ms, uint8
     if (s_key_state[key].maintenance_reported != 0U)
     {
         // PB10 维护入口已上报后，释放时不再额外生成普通长按事件。
+        return;
+    }
+    if (s_key_state[key].long_reported != 0U)
+    {
+        // PB1/PB11 已在按住达到长按阈值时上报，释放时只负责结束保持状态。
         return;
     }
 
@@ -120,6 +136,7 @@ void KeyScan_Init(void)
         s_key_state[i].stable_pressed = s_key_state[i].raw_pressed;
         s_key_state[i].pending_pressed = s_key_state[i].raw_pressed;
         s_key_state[i].maintenance_reported = 0U;
+        s_key_state[i].long_reported = 0U;
         s_key_state[i].pending_since_ms = 0U;
         s_key_state[i].pressed_since_ms = 0U;
     }
@@ -132,7 +149,7 @@ void KeyScan_Init(void)
 // 函    数：KeyScan_Update
 // 参    数：now_ms 系统毫秒时间戳。
 // 返 回 值：无
-// 注意事项：非阻塞扫描；短按/长按在释放时上报，PB10 维护入口在按住 3 秒时上报一次。
+// 注意事项：非阻塞扫描；PB1/PB11 普通长按在按住达到阈值时上报，短按仍在释放时确认。
 void KeyScan_Update(uint32_t now_ms)
 {
     uint8_t i;
@@ -175,6 +192,19 @@ void KeyScan_Update(uint32_t now_ms)
                                          BOARD_KEY_DEBOUNCE_MS) != 0U)
             {
                 KeyScan_HandleStableChange((KeyScan_Key_t)i, now_ms, raw);
+            }
+        }
+
+        if ((s_key_state[i].stable_pressed != 0U) &&
+            (s_key_state[i].long_reported == 0U) &&
+            (KeyScan_ReportLongWhileHeld((KeyScan_Key_t)i) != 0U))
+        {
+            // 手动页需要“按住到 1000ms 后立即开始点动”；事件只上报一次，持续保持由 KeyScan_IsPressed 查询。
+            held_ms = (uint32_t)(now_ms - s_key_state[i].pressed_since_ms);
+            if (held_ms >= BOARD_KEY_LONG_MS)
+            {
+                s_events |= s_key_pins[i].long_event;
+                s_key_state[i].long_reported = 1U;
             }
         }
 

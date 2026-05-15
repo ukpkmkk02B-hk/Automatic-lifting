@@ -14,29 +14,20 @@
 #include "menu.h"
 #include "app_state.h"
 
-static uint32_t g_app_ms;
+// SysTick_Handler 每 1ms 递增，主循环只读取时间戳；避免 OLED/I2C/Flash 占用期间丢失毫秒 tick。
+volatile uint32_t g_app_ms;
 
 // 函    数：App_TimebaseInit
 // 参    数：无
 // 返 回 值：无
-// 注意事项：当前阶段使用 SysTick COUNTFLAG 轮询生成 1ms 时间基准，不在中断里放业务逻辑。
+// 注意事项：SysTick 中断只递增 g_app_ms，不放业务逻辑；主循环使用时间戳差值做非阻塞调度。
 static void App_TimebaseInit(void)
 {
 	SysTick->LOAD = (SystemCoreClock / 1000U) - 1U;
 	SysTick->VAL = 0U;
-	SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk;
-}
-
-// 函    数：App_TimebasePoll
-// 参    数：无
-// 返 回 值：无
-// 注意事项：主循环每看到一次 COUNTFLAG 累加 1ms，供滤波、显示和非阻塞调度使用。
-static void App_TimebasePoll(void)
-{
-	if ((SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk) != 0U)
-	{
-		g_app_ms++;
-	}
+	SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk |
+	                SysTick_CTRL_TICKINT_Msk |
+	                SysTick_CTRL_ENABLE_Msk;
 }
 
 // 函    数：App_UpdateLeds
@@ -91,7 +82,6 @@ int main(void)
 	
 	while (1)
 	{
-		App_TimebasePoll();
 		// 主循环按“安全输入 -> 运动服务 -> 传感器/水深 -> 显示”的顺序轮询。
 		Limit_Update(g_app_ms);
 		KeyScan_Update(g_app_ms);

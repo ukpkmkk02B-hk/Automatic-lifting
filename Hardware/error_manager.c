@@ -1,6 +1,6 @@
 #include "error_manager.h"
 
-static uint32_t s_error_flags;
+static volatile uint32_t s_error_flags;
 static uint8_t s_buzzer_muted;
 
 // 函    数：ErrorManager_Mask
@@ -17,6 +17,31 @@ static uint32_t ErrorManager_Mask(ErrorCode_t code)
 
 	// 使用 bit0 对应第一个真实错误码，最多支持 32 个错误锁存位。
 	return (uint32_t)(1UL << ((uint8_t)code - 1U));
+}
+
+// 函    数：ErrorManager_EnterCritical
+// 参    数：无
+// 返 回 值：进入临界区前的 PRIMASK，用于恢复原中断状态。
+// 注意事项：只保护错误标志的单次读改写，禁止在临界区内放业务逻辑或耗时操作。
+static uint32_t ErrorManager_EnterCritical(void)
+{
+	uint32_t primask;
+
+	primask = __get_PRIMASK();
+	__disable_irq();
+	return primask;
+}
+
+// 函    数：ErrorManager_ExitCritical
+// 参    数：primask 进入临界区前保存的 PRIMASK。
+// 返 回 值：无
+// 注意事项：若调用前已经关中断，则保持关中断状态，避免破坏上层临界区。
+static void ErrorManager_ExitCritical(uint32_t primask)
+{
+	if (primask == 0UL)
+	{
+		__enable_irq();
+	}
 }
 
 // 函    数：ErrorManager_Init
@@ -36,12 +61,15 @@ void ErrorManager_Init(void)
 void ErrorManager_Set(ErrorCode_t code)
 {
 	uint32_t mask;
+	uint32_t primask;
 
 	mask = ErrorManager_Mask(code);
 	if (mask != 0UL)
 	{
-		// 错误置位采用锁存方式，直到受控恢复流程显式清除。
+		// 错误置位可能来自 TIM2 限位急停中断，读改写必须与主循环清除互斥。
+		primask = ErrorManager_EnterCritical();
 		s_error_flags |= mask;
+		ErrorManager_ExitCritical(primask);
 	}
 }
 
@@ -52,11 +80,14 @@ void ErrorManager_Set(ErrorCode_t code)
 void ErrorManager_Clear(ErrorCode_t code)
 {
 	uint32_t mask;
+	uint32_t primask;
 
 	mask = ErrorManager_Mask(code);
 	if (mask != 0UL)
 	{
+		primask = ErrorManager_EnterCritical();
 		s_error_flags &= ~mask;
+		ErrorManager_ExitCritical(primask);
 	}
 }
 
@@ -66,8 +97,12 @@ void ErrorManager_Clear(ErrorCode_t code)
 // 注意事项：清除错误不影响蜂鸣器静音标志，静音状态由独立接口管理。
 void ErrorManager_ClearAll(void)
 {
-	// 清除错误不影响蜂鸣器静音标志，静音状态由独立接口管理。
+	uint32_t primask;
+
+	// 清除错误不影响蜂鸣器静音标志；全局清除必须与 TIM2 急停置位互斥。
+	primask = ErrorManager_EnterCritical();
 	s_error_flags = 0UL;
+	ErrorManager_ExitCritical(primask);
 }
 
 // 函    数：ErrorManager_IsActive
@@ -77,9 +112,20 @@ void ErrorManager_ClearAll(void)
 uint8_t ErrorManager_IsActive(ErrorCode_t code)
 {
 	uint32_t mask;
+	uint32_t flags;
+	uint32_t primask;
 
 	mask = ErrorManager_Mask(code);
-	return ((mask != 0UL) && ((s_error_flags & mask) != 0UL)) ? 1U : 0U;
+	if (mask == 0UL)
+	{
+		return 0U;
+	}
+
+	primask = ErrorManager_EnterCritical();
+	flags = s_error_flags;
+	ErrorManager_ExitCritical(primask);
+
+	return ((flags & mask) != 0UL) ? 1U : 0U;
 }
 
 // 函    数：ErrorManager_GetLevel

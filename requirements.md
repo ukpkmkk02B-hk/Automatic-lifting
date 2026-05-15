@@ -82,6 +82,7 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - Stop automatic motion on repeated sensor read failure.
 - Stop automatic motion on repeated I2C recovery failure.
 - Stop automatic motion on tank low/high water, basket low/high water, water jump, pressure physical anomaly, or stall detection.
+- Stop automatic motion and raise `E_DEPTH_TRACKING` when target tracking error exceeds `±1mm`, restart depth difference exceeds `3mm`, or automatic/recovery depth freshness waits time out.
 - Buzzer silence must not clear fault state.
 - Manual movement after alarm is only allowed inside maintenance mode.
 - Limit protection must never be ignored, even in maintenance mode.
