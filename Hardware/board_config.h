@@ -50,8 +50,8 @@
 #define BOARD_UM244_MF_HOLD_LEVEL        Bit_SET
 #define BOARD_UM244_MF_RELEASE_LEVEL     Bit_RESET
 // DIR 高低电平需要首轮带载前实测；若方向相反，应改这里的映射而不是改控制算法。
-#define BOARD_UM244_DIR_UP_LEVEL         Bit_SET
-#define BOARD_UM244_DIR_DOWN_LEVEL       Bit_RESET
+#define BOARD_UM244_DIR_UP_LEVEL         Bit_RESET
+#define BOARD_UM244_DIR_DOWN_LEVEL       Bit_SET
 
 // 四路 24V NPN 限位经光耦隔离后进入 STM32，MCU 侧使用 3.3V 上拉。
 // 有效电平：GPIO 读到低电平表示对应物理限位已触发。
