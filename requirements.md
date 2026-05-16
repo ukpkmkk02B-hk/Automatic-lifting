@@ -45,8 +45,8 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - Default initial target depth: `100mm`.
 - Default final target depth: `10mm`.
 - Default shallowing rate: `1mm/day`.
-- Maximum shallowing rate: `2mm/day`.
-- Target setting range: `8-100mm`.
+- Maximum shallowing rate: `3mm/day`.
+- Target setting range: `5-100mm`.
 - Control tolerance: `±1mm`.
 - No RTC in the current version. Running days and daily progress are based only on powered-on runtime.
 - Do not compensate missed movement during power loss.
@@ -57,11 +57,11 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - UM244 microstep setting: `1600 pulse/rev`.
 - Motion scale: `800 pulse/mm`.
 - Default nap movement: `8 pulse = 0.01mm`.
-- Maximum single nap movement: `16 pulse`.
+- Maximum single nap movement: `24 pulse`.
 - Default nap interval at `1mm/day` and `8 pulse`: about `14.4min`.
 - Minimum nap interval: `5min`.
 - Automatic nap pulse frequency: default `800Hz`, allow fallback to `400Hz`.
-- Automatic nap bursts of `1-16 pulse` do not use acceleration or deceleration.
+- Automatic nap bursts of `1-24 pulse` do not use acceleration or deceleration.
 - `DIR` setup and hold time must be at least `5ms` around STEP output.
 - `APP_NAP_MOVE` must use a busy lock so one nap burst cannot be triggered twice.
 - Manual speed: only one speed, `1mm/s = 800 pulse/s`.

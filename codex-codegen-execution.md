@@ -453,7 +453,7 @@ I2C 容错规则：
 - 可参考 `Reference/步进电机驱动示例/驱动编码器电机/Hardware/Timer.c` 的 TIM/NVIC 标准外设库初始化写法，但本项目 STEP 中断必须加入有限脉冲计数和限位急停直读。
 - 800 pulse/mm 换算。
 - 自动打盹脉冲频率默认 800Hz，可降级为 400Hz。
-- 自动打盹 `1-16 pulse` 不做加减速。
+- 自动打盹 `1-24 pulse` 不做加减速。
 - `DIR` 改变后至少等待 5ms 再输出 STEP，最后一个 STEP 后至少保持 5ms。
 - 手动速度 1mm/s = 800 pulse/s。
 - 回零速度默认 0.5mm/s = 400 pulse/s。

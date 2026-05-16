@@ -185,9 +185,35 @@ static void Menu_StartConfirm(Menu_Confirm_t confirm, Menu_Page_t return_page)
 	s_page = MENU_PAGE_MAINTENANCE;
 }
 
+// 函    数：Menu_GetMaxDailyShallowMmX10
+// 参    数：nap_pulses 单次打盹脉冲数，单位 pulse。
+// 返 回 值：在最小打盹间隔限制下可实现的最大每日变浅量，单位 mm_x10/day。
+// 注意事项：5min 最小间隔优先于菜单最大值；8 pulse 时最多约 2.8mm/day，3.0mm/day 需至少 9 pulse。
+static int32_t Menu_GetMaxDailyShallowMmX10(uint16_t nap_pulses)
+{
+	uint32_t max_daily_pulses;
+	uint32_t max_daily_mm_x10;
+
+	if (nap_pulses == 0U)
+	{
+		return 0L;
+	}
+
+	max_daily_pulses = ((BOARD_SECONDS_PER_DAY * 1000UL) * (uint32_t)nap_pulses) /
+	                   BOARD_NAP_MIN_INTERVAL_MS;
+	max_daily_mm_x10 = (max_daily_pulses * 10UL) / BOARD_STEPPER_PULSE_PER_MM;
+	if (max_daily_mm_x10 > (uint32_t)BOARD_DAILY_SHALLOW_MAX_MM_X10)
+	{
+		max_daily_mm_x10 = (uint32_t)BOARD_DAILY_SHALLOW_MAX_MM_X10;
+	}
+
+	return (int32_t)max_daily_mm_x10;
+}
+
 static void Menu_AdjustParam(int8_t delta)
 {
 	int32_t value;
+	int32_t max_daily_mm_x10;
 
 	if ((s_page != MENU_PAGE_PARAM) || (s_param_error != 0U) ||
 	    (s_param_id == UI_PAGES_PARAM_MANUAL_SPEED))
@@ -199,25 +225,33 @@ static void Menu_AdjustParam(int8_t delta)
 	{
 	case UI_PAGES_PARAM_INITIAL_DEPTH:
 		value = s_param_record.initial_target_mm_x10 + ((int32_t)delta * 10L);
-		if (value < 0L)
+		if (value < s_param_record.final_target_mm_x10)
 		{
-			value = 0L;
+			value = s_param_record.final_target_mm_x10;
 		}
-		if (value > 1100L)
+		if (value < BOARD_TARGET_MIN_DEPTH_MM_X10)
 		{
-			value = 1100L;
+			value = BOARD_TARGET_MIN_DEPTH_MM_X10;
+		}
+		if (value > BOARD_TARGET_MAX_DEPTH_MM_X10)
+		{
+			value = BOARD_TARGET_MAX_DEPTH_MM_X10;
 		}
 		s_param_record.initial_target_mm_x10 = value;
 		break;
 	case UI_PAGES_PARAM_FINAL_DEPTH:
 		value = s_param_record.final_target_mm_x10 + ((int32_t)delta * 10L);
-		if (value < 0L)
+		if (value < BOARD_TARGET_MIN_DEPTH_MM_X10)
 		{
-			value = 0L;
+			value = BOARD_TARGET_MIN_DEPTH_MM_X10;
 		}
-		if (value > 1100L)
+		if (value > BOARD_TARGET_MAX_DEPTH_MM_X10)
 		{
-			value = 1100L;
+			value = BOARD_TARGET_MAX_DEPTH_MM_X10;
+		}
+		if (value > s_param_record.initial_target_mm_x10)
+		{
+			value = s_param_record.initial_target_mm_x10;
 		}
 		s_param_record.final_target_mm_x10 = value;
 		break;
@@ -227,21 +261,26 @@ static void Menu_AdjustParam(int8_t delta)
 		{
 			value = 0L;
 		}
-		if (value > 30L)
+		if (value > BOARD_DAILY_SHALLOW_MAX_MM_X10)
 		{
-			value = 30L;
+			value = BOARD_DAILY_SHALLOW_MAX_MM_X10;
+		}
+		max_daily_mm_x10 = Menu_GetMaxDailyShallowMmX10(s_param_record.nap_pulses);
+		if (value > max_daily_mm_x10)
+		{
+			value = max_daily_mm_x10;
 		}
 		s_param_record.daily_shallow_mm_x10 = value;
 		break;
 	case UI_PAGES_PARAM_NAP_PULSE:
 		value = (int32_t)s_param_record.nap_pulses + (int32_t)delta;
-		if (value < 0L)
+		if (value < 1L)
 		{
-			value = 0L;
+			value = 1L;
 		}
-		if (value > 20L)
+		if (value > (int32_t)BOARD_NAP_MAX_PULSES)
 		{
-			value = 20L;
+			value = BOARD_NAP_MAX_PULSES;
 		}
 		s_param_record.nap_pulses = (uint16_t)value;
 		break;
@@ -261,11 +300,9 @@ static void Menu_SaveParam(uint32_t now_ms)
 		return;
 	}
 
-	status = ParamStore_ValidateRecord(&s_param_record);
-	if (status == PARAM_STORE_STATUS_OK)
-	{
-		status = ParamStore_SaveParameters(&s_param_record);
-	}
+	// 菜单调整参数后，s_param_record 的 crc16 仍是旧记录的校验值；
+	// 保存接口会在写 Flash 前统一刷新 seq/crc16，并再次执行范围校验。
+	status = ParamStore_SaveParameters(&s_param_record);
 
 	if (status == PARAM_STORE_STATUS_OK)
 	{

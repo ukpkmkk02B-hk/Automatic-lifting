@@ -100,6 +100,34 @@ static uint8_t ParamStore_IsFlashLayoutValid(void)
 	return 1U;
 }
 
+// 函    数：ParamStore_IsNapIntervalValid
+// 参    数：daily_shallow_mm_x10 每日变浅量，单位 mm_x10/day；nap_pulses 单次打盹脉冲数，单位 pulse。
+// 返 回 值：组合参数不会让理论打盹间隔低于 BOARD_NAP_MIN_INTERVAL_MS 时返回 1。
+// 注意事项：保存层再次校验菜单组合，防止 3.0mm/day + 8 pulse 等参数绕过菜单后写入 Flash。
+static uint8_t ParamStore_IsNapIntervalValid(int32_t daily_shallow_mm_x10, uint16_t nap_pulses)
+{
+	uint32_t daily_pulses;
+	uint32_t interval_ms;
+
+	if (daily_shallow_mm_x10 <= 0L)
+	{
+		return 1U;
+	}
+	if (nap_pulses == 0U)
+	{
+		return 0U;
+	}
+
+	daily_pulses = ((uint32_t)daily_shallow_mm_x10 * BOARD_STEPPER_PULSE_PER_MM) / 10UL;
+	if (daily_pulses == 0UL)
+	{
+		return 1U;
+	}
+
+	interval_ms = ((BOARD_SECONDS_PER_DAY * 1000UL) * (uint32_t)nap_pulses) / daily_pulses;
+	return (interval_ms >= BOARD_NAP_MIN_INTERVAL_MS) ? 1U : 0U;
+}
+
 // 函    数：ParamStore_ReadPage
 // 参    数：page_addr 参数页地址；record 输出记录副本。
 // 返 回 值：记录校验状态。
@@ -475,6 +503,10 @@ ParamStore_Status_t ParamStore_ValidateRecord(const ParamStore_Record_t *record)
 
 	if ((record->nap_pulses == 0U) ||
 	    (record->nap_pulses > BOARD_NAP_MAX_PULSES))
+	{
+		return PARAM_STORE_STATUS_ERROR_RANGE;
+	}
+	if (ParamStore_IsNapIntervalValid(record->daily_shallow_mm_x10, record->nap_pulses) == 0U)
 	{
 		return PARAM_STORE_STATUS_ERROR_RANGE;
 	}

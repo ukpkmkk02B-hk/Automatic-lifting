@@ -425,14 +425,14 @@ StepperUM244_Status_t StepperUM244_StartPulses(StepperUM244_Direction_t directio
 // 函    数：StepperUM244_StartNapMove
 // 参    数：direction 自动打盹运动方向；pulses 单次微动脉冲数；now_ms 当前毫秒时间戳。
 // 返 回 值：命令状态。
-// 注意事项：自动打盹一次最多 16 pulse，防止单次位移过大。
+// 注意事项：自动打盹一次最多 BOARD_NAP_MAX_PULSES pulse，防止单次位移过大。
 StepperUM244_Status_t StepperUM244_StartNapMove(StepperUM244_Direction_t direction,
                                                 uint16_t pulses,
                                                 uint32_t now_ms)
 {
 	if ((pulses == 0U) || (pulses > BOARD_NAP_MAX_PULSES))
 	{
-		// 自动打盹一次最多 16 pulse，防止单次位移过大。
+		// 自动打盹一次最多 BOARD_NAP_MAX_PULSES pulse，防止单次位移过大。
 		return STEPPER_UM244_STATUS_ERROR_PARAM;
 	}
 

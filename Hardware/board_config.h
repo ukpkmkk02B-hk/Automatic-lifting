@@ -124,9 +124,9 @@
 #define BOARD_STEPPER_PULSE_PER_REV      1600U
 #define BOARD_LEADSCREW_MM_PER_REV_X10   20U
 #define BOARD_STEPPER_PULSE_PER_MM       800U
-// 自动打盹单次脉冲范围，单位 pulse；8 pulse 约等于 0.01mm，最大不超过 16 pulse。
+// 自动打盹单次脉冲范围，单位 pulse；8 pulse 约等于 0.01mm，最大不超过 24 pulse。
 #define BOARD_NAP_DEFAULT_PULSES         8U
-#define BOARD_NAP_MAX_PULSES             16U
+#define BOARD_NAP_MAX_PULSES             24U
 // 自动打盹最小间隔，单位 ms；防止菜单参数导致唤醒过于频繁。
 #define BOARD_NAP_MIN_INTERVAL_MS        300000UL
 // 自动目标水深允许误差，单位 mm_x10；超过 ±1.0mm 后续阶段应暂停报警。
@@ -191,15 +191,15 @@
 #define BOARD_PARAM_RUNTIME_SAVE_MS      600000UL
 
 // 持久化默认参数，水深单位为 mm_x10，脉冲单位为 pulse。
-// 目标范围 8..100mm；默认从 100mm 逐日变浅到 10mm，每日 1mm。
+// 目标范围 5..100mm；默认从 100mm 逐日变浅到 10mm，每日 1mm。
 #define BOARD_PARAM_MAGIC                0x414C4654UL
 #define BOARD_PARAM_VERSION              1U
-#define BOARD_TARGET_MIN_DEPTH_MM_X10    80
+#define BOARD_TARGET_MIN_DEPTH_MM_X10    50
 #define BOARD_TARGET_MAX_DEPTH_MM_X10    1000
 #define BOARD_TARGET_DEFAULT_INITIAL_MM_X10 1000
 #define BOARD_TARGET_DEFAULT_FINAL_MM_X10   100
 #define BOARD_DAILY_SHALLOW_DEFAULT_MM_X10  10
-#define BOARD_DAILY_SHALLOW_MAX_MM_X10      20
+#define BOARD_DAILY_SHALLOW_MAX_MM_X10      30
 #define BOARD_RESTART_DEPTH_DIFF_MM_X10     30
 
 #endif

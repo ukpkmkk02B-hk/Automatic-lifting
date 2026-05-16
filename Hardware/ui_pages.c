@@ -566,28 +566,28 @@ void UiPages_FormatParam(const UiPages_ParamContext_t *ctx, UiPages_Frame_t fram
 		UiPages_WriteText(frame[1], 0U, "VAL ");
 		UiPages_WriteDepth3x1(frame[1], 4U, record->initial_target_mm_x10, 1U);
 		UiPages_WriteText(frame[1], 9U, "mm");
-		UiPages_WriteText(frame[2], 0U, "RNG 008-100mm");
+		UiPages_WriteText(frame[2], 0U, "RNG 005-100mm");
 		break;
 	case UI_PAGES_PARAM_FINAL_DEPTH:
 		UiPages_WriteText(frame[0], 0U, "P2 FINAL DEPTH");
 		UiPages_WriteText(frame[1], 0U, "VAL ");
 		UiPages_WriteDepth3x1(frame[1], 4U, record->final_target_mm_x10, 1U);
 		UiPages_WriteText(frame[1], 9U, "mm");
-		UiPages_WriteText(frame[2], 0U, "RNG 008-100mm");
+		UiPages_WriteText(frame[2], 0U, "RNG 005-100mm");
 		break;
 	case UI_PAGES_PARAM_DAILY_RATE:
 		UiPages_WriteText(frame[0], 0U, "P3 DAILY RATE");
 		UiPages_WriteText(frame[1], 0U, "VAL ");
 		UiPages_WriteDepth3x1(frame[1], 4U, record->daily_shallow_mm_x10, 1U);
 		UiPages_WriteText(frame[1], 9U, "mm/d");
-		UiPages_WriteText(frame[2], 0U, "RNG 0.0-2.0");
+		UiPages_WriteText(frame[2], 0U, "RNG 0.0-3.0");
 		break;
 	case UI_PAGES_PARAM_NAP_PULSE:
 		UiPages_WriteText(frame[0], 0U, "P4 NAP PULSE");
 		UiPages_WriteText(frame[1], 0U, "VAL ");
 		UiPages_WriteUint(frame[1], 4U, 3U, record->nap_pulses);
 		UiPages_WriteText(frame[1], 7U, "pls");
-		UiPages_WriteText(frame[2], 0U, "RNG 001-016");
+		UiPages_WriteText(frame[2], 0U, "RNG 001-024");
 		break;
 	case UI_PAGES_PARAM_MANUAL_SPEED:
 	default:
