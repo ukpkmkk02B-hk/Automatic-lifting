@@ -34,6 +34,24 @@ typedef struct
 	uint32_t timestamp_ms;
 } WaterDepth_State_t;
 
+typedef struct
+{
+	// 1 表示趋势数据满足窗口和最小样本数要求。
+	uint8_t valid;
+	// 参与趋势计算的样本数量。
+	uint8_t sample_count;
+	// 首末样本时间差，单位 ms。
+	uint32_t elapsed_ms;
+	// 趋势起点和终点水深，单位 mm_x10。
+	int32_t oldest_basket_depth_mm_x10;
+	int32_t newest_basket_depth_mm_x10;
+	int32_t oldest_tank_depth_mm_x10;
+	int32_t newest_tank_depth_mm_x10;
+	// 正值表示水深下降速度，单位 mm_x10/min。
+	int32_t basket_drop_rate_mm_x10_per_min;
+	int32_t tank_drop_rate_mm_x10_per_min;
+} WaterDepth_Trend_t;
+
 // 函    数：WaterDepth_Init
 // 参    数：无
 // 返 回 值：无
@@ -51,6 +69,15 @@ void WaterDepth_Update(uint32_t now_ms);
 // 返 回 值：WATER_DEPTH_OK 表示状态有效；未有效返回 WATER_DEPTH_PENDING；参数非法返回错误。
 // 注意事项：调用方必须检查返回值，不能使用未有效水深做控制判断。
 WaterDepth_Status_t WaterDepth_GetState(WaterDepth_State_t *state);
+
+// 函    数：WaterDepth_GetTrend
+// 参    数：now_ms 当前系统毫秒时间戳；window_ms 趋势窗口；min_samples 最小有效样本数；trend 输出趋势。
+// 返 回 值：WATER_DEPTH_OK 表示趋势有效；样本不足返回 PENDING；参数非法返回 ERROR_PARAM。
+// 注意事项：趋势用于快速掉水跟随，正下降速度表示水深变浅或鱼缸水位下降。
+WaterDepth_Status_t WaterDepth_GetTrend(uint32_t now_ms,
+                                        uint32_t window_ms,
+                                        uint8_t min_samples,
+                                        WaterDepth_Trend_t *trend);
 
 // 函    数：WaterDepth_ConvertPressureDiffToMmX10
 // 参    数：diff_hpa_x100 压力差，单位 hPa_x100。

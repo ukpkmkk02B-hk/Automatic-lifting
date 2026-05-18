@@ -195,10 +195,24 @@ int32_t NapScheduler_GetTargetDepthMmX10(void)
 // 返 回 值：1 表示今天仍有自动打盹脉冲额度。
 uint8_t NapScheduler_HasDailyBudget(void)
 {
+	return (NapScheduler_GetDailyRemainingPulses() != 0UL) ? 1U : 0U;
+}
+
+// 函    数：NapScheduler_GetDailyRemainingPulses
+// 参    数：无
+// 返 回 值：今日自动变浅剩余 pulse 额度。
+// 注意事项：只代表可继续让框篮上升变浅的额度；下降补深和快速跟随不消耗该额度。
+uint32_t NapScheduler_GetDailyRemainingPulses(void)
+{
 	uint32_t daily_budget;
 
 	daily_budget = NapScheduler_GetDailyBudgetPulsesFromRecord(&s_record);
-	return (s_record.today_pulses_done < daily_budget) ? 1U : 0U;
+	if (s_record.today_pulses_done >= daily_budget)
+	{
+		return 0UL;
+	}
+
+	return daily_budget - s_record.today_pulses_done;
 }
 
 // 函    数：NapScheduler_IsDue
@@ -240,12 +254,32 @@ uint16_t NapScheduler_GetNextPulses(void)
 	return pulses;
 }
 
+static uint8_t NapScheduler_ShouldCountDaily(MotionSource_t source,
+                                             StepperUM244_Direction_t direction)
+{
+	if (direction != STEPPER_UM244_DIRECTION_UP)
+	{
+		return 0U;
+	}
+
+	return ((source == MOTION_SOURCE_DAILY_SHALLOW) ||
+	        (source == MOTION_SOURCE_DEPTH_TRACK_UP)) ? 1U : 0U;
+}
+
+static uint8_t NapScheduler_ShouldCheckStall(MotionSource_t source)
+{
+	return ((source == MOTION_SOURCE_DAILY_SHALLOW) ||
+	        (source == MOTION_SOURCE_DEPTH_TRACK_UP) ||
+	        (source == MOTION_SOURCE_DEPTH_TRACK_DOWN)) ? 1U : 0U;
+}
+
 // 函    数：NapScheduler_RecordMove
-// 参    数：record 运行记录；direction 实际方向；pulses 完成脉冲；
+// 参    数：record 运行记录；source 运动来源；direction 实际方向；pulses 完成脉冲；
 //           before_depth_mm_x10/after_depth_mm_x10 运动前后框篮水深。
 // 返 回 值：记录结果。
-// 注意事项：完成后重新安排下一次打盹，不补偿暂停或断电期间错过的唤醒。
+// 注意事项：只有每日变浅和低频向上修正计入 today_pulses_done；完成后重新安排下一次打盹。
 NapScheduler_RecordResult_t NapScheduler_RecordMove(ParamStore_Record_t *record,
+                                                    MotionSource_t source,
                                                     StepperUM244_Direction_t direction,
                                                     uint16_t pulses,
                                                     int32_t before_depth_mm_x10,
@@ -260,12 +294,24 @@ NapScheduler_RecordResult_t NapScheduler_RecordMove(ParamStore_Record_t *record,
 		return NAP_SCHEDULER_RECORD_OK;
 	}
 
-	record->today_pulses_done += (uint32_t)pulses;
-	s_record.today_pulses_done = record->today_pulses_done;
-	result = NapScheduler_CheckStallTrend(direction,
-	                                      pulses,
-	                                      before_depth_mm_x10,
-	                                      after_depth_mm_x10);
+	if (NapScheduler_ShouldCountDaily(source, direction) != 0U)
+	{
+		// today_pulses_done 只记录“自动变浅 pulse”，下降补深、DROP、手动和回零都不写入。
+		record->today_pulses_done += (uint32_t)pulses;
+		s_record.today_pulses_done = record->today_pulses_done;
+	}
+
+	if (NapScheduler_ShouldCheckStall(source) != 0U)
+	{
+		result = NapScheduler_CheckStallTrend(direction,
+		                                      pulses,
+		                                      before_depth_mm_x10,
+		                                      after_depth_mm_x10);
+	}
+	else
+	{
+		result = NAP_SCHEDULER_RECORD_OK;
+	}
 	NapScheduler_ResetNext(now_ms);
 	return result;
 }

@@ -151,8 +151,8 @@
 #define BOARD_STEPPER_MAX_FREQ_HZ        5000U
 // 手动点动采用有限脉冲小段连续触发，80 pulse @800Hz 约 100ms；松手后可立即停止后续小段。
 #define BOARD_STEPPER_MANUAL_CHUNK_PULSES 80U
-// 位置范围：框篮机械最大行程 100mm，内部位置以 pulse 保存。
-#define BOARD_BASKET_MAX_TRAVEL_MM       100U
+// 位置范围：框篮机械最大行程 170mm，内部位置以 pulse 保存。
+#define BOARD_BASKET_MAX_TRAVEL_MM       170U
 #define BOARD_BASKET_MAX_POSITION_PULSES (BOARD_BASKET_MAX_TRAVEL_MM * BOARD_STEPPER_PULSE_PER_MM)
 // 回零参数：先离开下限位 1mm，再二次低速靠近；搜索上限防止无止境运动。
 #define BOARD_HOMING_BACKOFF_MM          1U
@@ -164,16 +164,52 @@
 // 水深和传感器健康参数。
 // 水深阈值单位为 mm，滤波样本数为最近有效压力读数个数。
 #define BOARD_WATER_FILTER_SAMPLES       5U
+// 水深趋势缓存：每 1s 记录一次滤波水深，覆盖快速掉水 15s 判断窗口。
+#define BOARD_WATER_TREND_SAMPLE_MS      1000UL
+#define BOARD_WATER_TREND_SAMPLES        20U
 #define BOARD_TANK_MIN_DEPTH_MM          250
 #define BOARD_TANK_MAX_DEPTH_MM          450
 #define BOARD_BASKET_MIN_SAFE_DEPTH_MM   5
 #define BOARD_BASKET_MAX_SAFE_DEPTH_MM   120
-// 水位突变阈值单位 mm/min；传感器或 I2C 连续失败达到阈值后进入故障处理。
+// 旧水位突变阈值保留用于非可跟随异常；普通鱼缸掉水由快速跟随仲裁处理。
 #define BOARD_WATER_JUMP_MM_PER_MIN      10
 #define BOARD_SENSOR_FAILURE_LIMIT       5U
 #define BOARD_I2C_RECOVERY_FAILURE_LIMIT 5U
 // 压力差换算水深低于 -2.0mm 视为物理异常，单位 mm_x10。
 #define BOARD_PRESSURE_PHYSICAL_MIN_MM_X10 (-20)
+
+// 低频闭环水深修正参数。单位见宏名：ms、mm_x10、pulse、Hz。
+// error = basket_depth - target_depth；正值表示框篮实际水深偏深，需要上升变浅。
+#define BOARD_DEPTH_TRACK_CHECK_INTERVAL_MS 180000UL
+#define BOARD_DEPTH_TRACK_START_DEADBAND_MM_X10 20
+#define BOARD_DEPTH_TRACK_STOP_DEADBAND_MM_X10 10
+#define BOARD_DEPTH_TRACK_STABLE_DELTA_MM_X10 5
+#define BOARD_DEPTH_TRACK_HARD_ERROR_MM_X10 50
+#define BOARD_DEPTH_TRACK_MIN_STEP_PULSES 160U
+#define BOARD_DEPTH_TRACK_DEFAULT_STEP_PULSES 200U
+#define BOARD_DEPTH_TRACK_MAX_STEP_PULSES 400U
+#define BOARD_DEPTH_TRACK_FREQ_HZ        800U
+#define BOARD_DEPTH_TRACK_STABLE_WAIT_MS 15000UL
+#define BOARD_DEPTH_TRACK_STABLE_SAMPLES 3U
+#define BOARD_DEPTH_TRACK_MAX_FAILURES   5U
+#define BOARD_DEPTH_TRACK_HOUR_LIMIT_PULSES 2400U
+#define BOARD_DEPTH_TRACK_DAY_LIMIT_PULSES 8000U
+
+// 快速掉水跟随参数。只允许框篮下降，普通 5..30mm/min 掉水可跟随，超过 30mm/min 报警。
+#define BOARD_DROP_TREND_WINDOW_MS       15000UL
+#define BOARD_DROP_TREND_MIN_SAMPLES     3U
+#define BOARD_DROP_ENTRY_RATE_MM_PER_MIN 5
+#define BOARD_DROP_DANGER_RATE_MM_PER_MIN 30
+#define BOARD_DROP_STABLE_RATE_MM_PER_MIN 2
+#define BOARD_DROP_START_ERROR_MM_X10    20
+#define BOARD_DROP_STOP_ERROR_MM_X10     10
+#define BOARD_DROP_MIN_STEP_PULSES       400U
+#define BOARD_DROP_MAX_STEP_PULSES       800U
+#define BOARD_DROP_FREQ_HZ               800U
+#define BOARD_DROP_MAX_CONT_TIME_MS      30000UL
+#define BOARD_DROP_HARD_MAX_TIME_MS      60000UL
+#define BOARD_DROP_MAX_DISTANCE_PULSES   24000U
+#define BOARD_DROP_STABLE_WAIT_MS        15000UL
 
 // Flash 参数区：STM32F103C8T6 标称 64KB Flash，末尾两个 1KB 页用于 A/B 备份。
 // 注意事项：Keil IROM 必须限制为 0x08000000 + 0x0000F800，避免代码覆盖参数页。

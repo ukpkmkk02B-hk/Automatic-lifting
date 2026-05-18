@@ -1,4 +1,5 @@
 #include "app_state.h"
+#include "auto_control.h"
 #include "board_config.h"
 #include "error_code.h"
 #include "error_manager.h"
@@ -41,9 +42,15 @@ static uint32_t s_nap_phase_start_ms;
 static WaterDepth_State_t s_nap_before_depth;
 static StepperUM244_Direction_t s_nap_direction;
 static uint16_t s_nap_pulses;
+static uint16_t s_auto_frequency_hz;
+static MotionSource_t s_auto_source;
+static uint8_t s_auto_move_recorded;
+static uint8_t s_auto_position_applied;
+static uint8_t s_check_water_notice;
 static uint8_t s_manual_chunk_active;
 static StepperUM244_Direction_t s_manual_direction;
 
+static void AppState_ApplyAutoCompletedPartial(uint32_t now_ms);
 static void AppState_ApplyManualCompleted(void);
 
 static ParamStore_AppState_t AppState_ToStoredState(AppState_State_t state)
@@ -103,10 +110,30 @@ static const char *AppState_GetMotionText(AppState_State_t state)
 		return "TEST";
 	case APP_STATE_PAUSED:
 	case APP_STATE_FAULT:
-		return "STOP";
+		return (s_check_water_notice != 0U) ? "DROP" : "STOP";
 	case APP_STATE_NAP_WAIT:
+		if (AutoControl_GetDisplay() == AUTO_CONTROL_DISPLAY_TRACK)
+		{
+			return "TRK";
+		}
+		if (AutoControl_GetDisplay() == AUTO_CONTROL_DISPLAY_DROP)
+		{
+			return "DROP";
+		}
 		return "WAIT";
 	case APP_STATE_NAP_MOVE:
+		if (s_auto_source == MOTION_SOURCE_DEPTH_TRACK_UP)
+		{
+			return "TRK";
+		}
+		if (s_auto_source == MOTION_SOURCE_DEPTH_TRACK_DOWN)
+		{
+			return "TRK";
+		}
+		if (s_auto_source == MOTION_SOURCE_DROP_FOLLOW)
+		{
+			return "DROP";
+		}
 		return "NAP";
 	case APP_STATE_MANUAL:
 		return "JOG";
@@ -202,6 +229,7 @@ static void AppState_Enter(AppState_State_t state, uint32_t now_ms)
 	{
 		// 进入恢复关键状态前先切断 STEP；若中断的是手动点动，随后按已输出 pulse 结算位置。
 		StepperUM244_Stop();
+		AppState_ApplyAutoCompletedPartial(now_ms);
 		AppState_ApplyManualCompleted();
 	}
 
@@ -274,9 +302,9 @@ static uint8_t AppState_CheckDepthTolerance(void)
 	}
 
 	error_mm_x10 = depth.basket_depth_mm_x10 - NapScheduler_GetTargetDepthMmX10();
-	if (AppState_Abs32(error_mm_x10) > BOARD_CONTROL_TOLERANCE_MM_X10)
+	if (AppState_Abs32(error_mm_x10) > BOARD_DEPTH_TRACK_HARD_ERROR_MM_X10)
 	{
-		// 自动控制误差超过 ±1mm 时报警暂停；本版本不自动向下纠偏，避免错误追调。
+		// 受限闭环允许普通 ±2mm 偏差由低频修正处理，超过 5mm 视为跟踪硬故障。
 		ErrorManager_Set(ERROR_CODE_E_DEPTH_TRACKING);
 		return 0U;
 	}
@@ -398,7 +426,7 @@ static uint8_t AppState_CanClearLatchedFaults(void)
 		}
 
 		target_error_mm_x10 = depth.basket_depth_mm_x10 - NapScheduler_GetTargetDepthMmX10();
-		if (AppState_BlockFaultClearIf((AppState_Abs32(target_error_mm_x10) > BOARD_CONTROL_TOLERANCE_MM_X10) ? 1U : 0U,
+		if (AppState_BlockFaultClearIf((AppState_Abs32(target_error_mm_x10) > BOARD_DEPTH_TRACK_HARD_ERROR_MM_X10) ? 1U : 0U,
 		                               ERROR_CODE_E_DEPTH_TRACKING) != 0U)
 		{
 			blocked = 1U;
@@ -507,6 +535,8 @@ static void AppState_HandleSelfTestPass(uint32_t now_ms)
 
 	// 自动恢复只从自检后的恢复判断进入，下一次打盹从当前时间重新排程。
 	NapScheduler_ResetNext(now_ms);
+	AutoControl_Reset(now_ms);
+	s_check_water_notice = 0U;
 	AppState_Enter(APP_STATE_AUTO_RUN, now_ms);
 }
 
@@ -525,6 +555,7 @@ static void AppState_UpdateMenuSnapshot(uint32_t now_ms)
 	snapshot.force_self_test_page = (s_state == APP_STATE_SELF_TEST) ? 1U : 0U;
 	snapshot.mode = AppState_ToUiMode(s_state);
 	snapshot.motion_text = AppState_GetMotionText(s_state);
+	snapshot.notice_text = (s_check_water_notice != 0U) ? "CHECK WATER" : 0;
 	snapshot.target_depth_valid = 1U;
 	snapshot.target_depth_mm_x10 = nap_display.target_depth_mm_x10;
 	run_days = (s_record.total_run_seconds / BOARD_SECONDS_PER_DAY) + 1UL;
@@ -560,6 +591,8 @@ static void AppState_StartAuto(uint32_t now_ms)
 
 	NapScheduler_UpdateConfig(&s_record, now_ms);
 	NapScheduler_ResetNext(now_ms);
+	AutoControl_Reset(now_ms);
+	s_check_water_notice = 0U;
 	AppState_Enter(APP_STATE_AUTO_RUN, now_ms);
 }
 
@@ -789,6 +822,7 @@ static void AppState_HandleMenuIntents(uint32_t now_ms, const Menu_Intents_t *in
 	{
 		AppState_LoadRecord();
 		NapScheduler_UpdateConfig(&s_record, now_ms);
+		AutoControl_Reset(now_ms);
 	}
 	if (intents->alarm_ack != 0U)
 	{
@@ -806,13 +840,49 @@ static void AppState_HandleMenuIntents(uint32_t now_ms, const Menu_Intents_t *in
 	AppState_ServiceManual(now_ms, intents);
 }
 
-static void AppState_BeginNapMove(uint32_t now_ms)
+static void AppState_BeginAutoMove(uint32_t now_ms, const AutoControl_Decision_t *decision)
 {
 	s_nap_phase = APP_NAP_PHASE_PRE_DEPTH;
 	s_nap_phase_start_ms = now_ms;
-	// 本版本打盹只做向上变浅；水深超出目标 ±1mm 时报警暂停，等待人工确认，不自动向下追调。
-	s_nap_direction = STEPPER_UM244_DIRECTION_UP;
-	s_nap_pulses = NapScheduler_GetNextPulses();
+	s_nap_direction = decision->direction;
+	s_nap_pulses = decision->pulses;
+	s_auto_frequency_hz = decision->frequency_hz;
+	s_auto_source = decision->source;
+	s_auto_move_recorded = 0U;
+	s_auto_position_applied = 0U;
+}
+
+static void AppState_ApplyAutoCompletedPartial(uint32_t now_ms)
+{
+	uint16_t completed_pulses;
+
+	if ((s_state != APP_STATE_NAP_MOVE) || (s_auto_move_recorded != 0U))
+	{
+		return;
+	}
+
+	completed_pulses = StepperUM244_GetCompletedPulses();
+	if (completed_pulses == 0U)
+	{
+		s_auto_move_recorded = 1U;
+		AutoControl_NotifyMoveAbort(s_auto_source, now_ms);
+		return;
+	}
+
+	if (s_auto_position_applied == 0U)
+	{
+		PositionTracker_ApplyCompletedMove(s_nap_direction, completed_pulses);
+		s_auto_position_applied = 1U;
+	}
+	(void)NapScheduler_RecordMove(&s_record,
+	                               s_auto_source,
+	                               s_nap_direction,
+	                               completed_pulses,
+	                               s_nap_before_depth.basket_depth_mm_x10,
+	                               s_nap_before_depth.basket_depth_mm_x10,
+	                               now_ms);
+	AutoControl_NotifyMoveAbort(s_auto_source, now_ms);
+	s_auto_move_recorded = 1U;
 }
 
 static void AppState_ServiceNapMove(uint32_t now_ms)
@@ -855,9 +925,10 @@ static void AppState_ServiceNapMove(uint32_t now_ms)
 			AppState_Enter(APP_STATE_NAP_WAIT, now_ms);
 			return;
 		}
-		step_status = StepperUM244_StartNapMove(s_nap_direction,
-		                                        s_nap_pulses,
-		                                        now_ms);
+		step_status = StepperUM244_StartPulses(s_nap_direction,
+		                                       s_nap_pulses,
+		                                       s_auto_frequency_hz,
+		                                       now_ms);
 		if (step_status == STEPPER_UM244_STATUS_OK)
 		{
 			s_nap_phase = APP_NAP_PHASE_WAIT_MOVE;
@@ -878,6 +949,7 @@ static void AppState_ServiceNapMove(uint32_t now_ms)
 		}
 		if (StepperUM244_GetStopReason() != STEPPER_UM244_STOP_PULSE_DONE)
 		{
+			AppState_ApplyAutoCompletedPartial(now_ms);
 			AppState_Enter(APP_STATE_FAULT, now_ms);
 			return;
 		}
@@ -885,6 +957,7 @@ static void AppState_ServiceNapMove(uint32_t now_ms)
 		if (completed_pulses != 0U)
 		{
 			PositionTracker_ApplyCompletedMove(s_nap_direction, completed_pulses);
+			s_auto_position_applied = 1U;
 		}
 		s_nap_phase = APP_NAP_PHASE_POST_DEPTH;
 		s_nap_phase_start_ms = now_ms;
@@ -913,11 +986,19 @@ static void AppState_ServiceNapMove(uint32_t now_ms)
 
 	completed_pulses = StepperUM244_GetCompletedPulses();
 	record_result = NapScheduler_RecordMove(&s_record,
+	                                        s_auto_source,
 	                                        s_nap_direction,
 	                                        completed_pulses,
 	                                        s_nap_before_depth.basket_depth_mm_x10,
 	                                        after_depth.basket_depth_mm_x10,
 	                                        now_ms);
+	AutoControl_NotifyMoveComplete(s_auto_source,
+	                               s_nap_direction,
+	                               completed_pulses,
+	                               &s_nap_before_depth,
+	                               &after_depth,
+	                               now_ms);
+	s_auto_move_recorded = 1U;
 	if (record_result == NAP_SCHEDULER_RECORD_STALL_FAULT)
 	{
 		ErrorManager_Set(ERROR_CODE_E_STALL);
@@ -934,6 +1015,10 @@ static void AppState_ServiceNapMove(uint32_t now_ms)
 
 static void AppState_ServiceAutomatic(uint32_t now_ms)
 {
+	WaterDepth_State_t depth;
+	AutoControl_Input_t input;
+	AutoControl_Decision_t decision;
+
 	if ((s_state != APP_STATE_AUTO_RUN) &&
 	    (s_state != APP_STATE_NAP_WAIT) &&
 	    (s_state != APP_STATE_NAP_MOVE))
@@ -962,9 +1047,34 @@ static void AppState_ServiceAutomatic(uint32_t now_ms)
 	}
 	if (s_state == APP_STATE_NAP_WAIT)
 	{
-		if (NapScheduler_IsDue(now_ms) != 0U)
+		if (WaterDepth_GetState(&depth) != WATER_DEPTH_OK)
 		{
-			AppState_BeginNapMove(now_ms);
+			ErrorManager_Set(ERROR_CODE_E_DEPTH_TRACKING);
+			AppState_Enter(APP_STATE_FAULT, now_ms);
+			return;
+		}
+		input.depth = depth;
+		input.target_depth_mm_x10 = NapScheduler_GetTargetDepthMmX10();
+		input.nap_due = NapScheduler_IsDue(now_ms);
+		input.nap_pulses = NapScheduler_GetNextPulses();
+		input.daily_remaining_pulses = NapScheduler_GetDailyRemainingPulses();
+		AutoControl_Arbitrate(now_ms, &input, &decision);
+		if (decision.type == AUTO_CONTROL_DECISION_FAULT)
+		{
+			ErrorManager_Set(decision.error_code);
+			AppState_Enter(APP_STATE_FAULT, now_ms);
+			return;
+		}
+		if (decision.type == AUTO_CONTROL_DECISION_PAUSE)
+		{
+			s_check_water_notice = decision.check_water_notice;
+			AutoControl_Reset(now_ms);
+			AppState_Enter(APP_STATE_PAUSED, now_ms);
+			return;
+		}
+		if (decision.type == AUTO_CONTROL_DECISION_MOVE)
+		{
+			AppState_BeginAutoMove(now_ms, &decision);
 			AppState_Enter(APP_STATE_NAP_MOVE, now_ms);
 		}
 		return;
@@ -987,9 +1097,15 @@ void AppState_Init(uint32_t now_ms)
 	s_nap_phase_start_ms = now_ms;
 	s_nap_direction = STEPPER_UM244_DIRECTION_UP;
 	s_nap_pulses = 0U;
+	s_auto_frequency_hz = BOARD_STEPPER_AUTO_FREQ_HZ;
+	s_auto_source = MOTION_SOURCE_DAILY_SHALLOW;
+	s_auto_move_recorded = 0U;
+	s_auto_position_applied = 0U;
+	s_check_water_notice = 0U;
 	s_manual_chunk_active = 0U;
 	s_manual_direction = STEPPER_UM244_DIRECTION_DOWN;
 	NapScheduler_Init(&s_record, now_ms);
+	AutoControl_Init(now_ms);
 	SelfTest_Init(now_ms);
 	Menu_Init(now_ms);
 	AppState_UpdateMenuSnapshot(now_ms);

@@ -3,6 +3,7 @@
 This file is the short pin reference for firmware generation. The authoritative behavior is in `Auto-lift-wiring-design.md`.
 
 The pin layout follows `Materials/最小系统板.png`: keep OLED on `PB8/PB9`, group each pressure-sensor I2C pair on adjacent pins, group UM244 STEP/DIR/MF on adjacent `PA3/PA4/PA5`, and keep the four limit inputs on adjacent `PB12-PB15`.
+
 ## STM32F103C8T6 Pins
 
 | Function          | Pin              | Direction    | Electrical Interface                                 | Active Level / Notes                                  |

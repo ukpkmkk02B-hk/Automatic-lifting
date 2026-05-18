@@ -25,6 +25,22 @@ typedef struct
 
 typedef enum
 {
+	// 每日计划打盹向上变浅，计入 today_pulses_done。
+	MOTION_SOURCE_DAILY_SHALLOW = 0,
+	// 低频闭环向上修正，计入 today_pulses_done 并受当天剩余额度限制。
+	MOTION_SOURCE_DEPTH_TRACK_UP,
+	// 低频闭环向下补深，不计入 today_pulses_done。
+	MOTION_SOURCE_DEPTH_TRACK_DOWN,
+	// 快速掉水跟随，只允许下降，不计入 today_pulses_done。
+	MOTION_SOURCE_DROP_FOLLOW,
+	// 手动点动，不计入自动每日变浅进度。
+	MOTION_SOURCE_MANUAL,
+	// 维护回零，不计入自动每日变浅进度。
+	MOTION_SOURCE_HOMING
+} MotionSource_t;
+
+typedef enum
+{
 	// 本次打盹记录正常，未触发卡滞判断或卡滞计数未达故障阈值。
 	NAP_SCHEDULER_RECORD_OK = 0,
 	// 本次累计达到 1mm 并完成趋势检查，上层可保存一次运行状态。
@@ -68,6 +84,12 @@ int32_t NapScheduler_GetTargetDepthMmX10(void);
 // 返 回 值：1 表示今天仍有自动打盹脉冲额度，0 表示当天计划已完成。
 uint8_t NapScheduler_HasDailyBudget(void);
 
+// 函    数：NapScheduler_GetDailyRemainingPulses
+// 参    数：无
+// 返 回 值：今日自动变浅剩余 pulse 额度。
+// 注意事项：自动打盹和低频闭环向上修正共享该额度。
+uint32_t NapScheduler_GetDailyRemainingPulses(void);
+
 // 函    数：NapScheduler_IsDue
 // 参    数：now_ms 当前系统毫秒时间戳。
 // 返 回 值：1 表示到达下一次打盹时间且仍有今日额度。
@@ -85,6 +107,7 @@ uint16_t NapScheduler_GetNextPulses(void);
 // 返 回 值：记录结果，用于判断是否需要保存或进入 E_STALL。
 // 注意事项：只更新内存记录和调度器缓存，不直接写 Flash。
 NapScheduler_RecordResult_t NapScheduler_RecordMove(ParamStore_Record_t *record,
+                                                    MotionSource_t source,
                                                     StepperUM244_Direction_t direction,
                                                     uint16_t pulses,
                                                     int32_t before_depth_mm_x10,

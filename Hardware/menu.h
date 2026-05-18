@@ -25,6 +25,8 @@ typedef struct
 	uint16_t run_days;
 	// 当前运动/等待文本，必须为 4 字符以内 ASCII。
 	const char *motion_text;
+	// 主页面提示文本，非空时替代 NXT 行，例如 DROP 后的 CHECK WATER。
+	const char *notice_text;
 	// 下次打盹倒计时，单位 second。
 	uint8_t next_nap_valid;
 	uint32_t next_nap_remaining_s;

@@ -49,7 +49,7 @@ typedef enum
 	ERROR_CODE_E_POSITION_UNTRUSTED,
 	// 累计位移后水深趋势不符合预期，判断为卡滞风险。
 	ERROR_CODE_E_STALL,
-	// 自动目标水深超出 ±1mm 控制容差，或断电恢复水深差异超过 3mm。
+	// 自动目标硬误差超过 5mm、低频闭环连续修正失败，或断电恢复水深差异超过 3mm。
 	ERROR_CODE_E_DEPTH_TRACKING,
 	// 开机自检失败。
 	ERROR_CODE_E_SELF_TEST_FAIL,

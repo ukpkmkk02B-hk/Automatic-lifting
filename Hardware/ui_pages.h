@@ -80,6 +80,7 @@ typedef struct
 	uint16_t run_days;
 	UiPages_Mode_t mode;
 	const char *motion_text;
+	const char *notice_text;
 	uint8_t next_nap_valid;
 	uint32_t next_nap_remaining_s;
 	// 当天自动打盹已完成脉冲数，单位 pulse；主页面以 Pxxx 摘要显示。

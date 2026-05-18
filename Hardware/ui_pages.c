@@ -394,8 +394,15 @@ void UiPages_FormatMain(const UiPages_MainContext_t *ctx, UiPages_Frame_t frame)
 	motion = (ctx->motion_text != 0) ? ctx->motion_text : "---";
 	UiPages_WriteText(frame[1], motion_col, motion);
 
-	UiPages_WriteText(frame[2], 0U, "NXT ");
-	UiPages_WriteTime(frame[2], 4U, ctx->next_nap_remaining_s, ctx->next_nap_valid);
+	if (ctx->notice_text != 0)
+	{
+		UiPages_WriteText(frame[2], 0U, ctx->notice_text);
+	}
+	else
+	{
+		UiPages_WriteText(frame[2], 0U, "NXT ");
+		UiPages_WriteTime(frame[2], 4U, ctx->next_nap_remaining_s, ctx->next_nap_valid);
+	}
 
 	today_pulses = ctx->today_done_pulses;
 	if (today_pulses > 999UL)

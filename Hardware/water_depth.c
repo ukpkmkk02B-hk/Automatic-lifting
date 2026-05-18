@@ -13,8 +13,19 @@ typedef struct
 	uint32_t last_timestamp_ms;
 } WaterDepth_Filter_t;
 
+typedef struct
+{
+	int32_t basket_depth_mm_x10;
+	int32_t tank_depth_mm_x10;
+	uint32_t timestamp_ms;
+} WaterDepth_TrendSample_t;
+
 static WaterDepth_Filter_t s_filters[WF5805F_SENSOR_COUNT];
 static WaterDepth_State_t s_state;
+static WaterDepth_TrendSample_t s_trend_samples[BOARD_WATER_TREND_SAMPLES];
+static uint8_t s_trend_index;
+static uint8_t s_trend_count;
+static uint32_t s_last_trend_sample_ms;
 static uint8_t s_jump_ref_valid;
 static uint32_t s_jump_ref_ms;
 static int32_t s_jump_ref_basket_mm_x10;
@@ -109,6 +120,47 @@ static uint8_t WaterDepth_FilterAverage(const WaterDepth_Filter_t *filter,
 static int32_t WaterDepth_Abs(int32_t value)
 {
 	return (value < 0L) ? -value : value;
+}
+
+static int32_t WaterDepth_ComputeDropRateMmX10PerMin(int32_t oldest_mm_x10,
+                                                     int32_t newest_mm_x10,
+                                                     uint32_t elapsed_ms)
+{
+	int32_t delta_drop_mm_x10;
+
+	if (elapsed_ms == 0UL)
+	{
+		return 0L;
+	}
+
+	// 水深下降时 newest 小于 oldest，下降速度用正数表示，便于快速掉水阈值比较。
+	delta_drop_mm_x10 = oldest_mm_x10 - newest_mm_x10;
+	return (int32_t)(((int64_t)delta_drop_mm_x10 * 60000LL) /
+	                 (int64_t)elapsed_ms);
+}
+
+static void WaterDepth_RecordTrendSample(uint32_t now_ms)
+{
+	if ((s_trend_count != 0U) &&
+	    ((uint32_t)(now_ms - s_last_trend_sample_ms) < BOARD_WATER_TREND_SAMPLE_MS))
+	{
+		return;
+	}
+
+	s_trend_samples[s_trend_index].basket_depth_mm_x10 = s_state.basket_depth_mm_x10;
+	s_trend_samples[s_trend_index].tank_depth_mm_x10 = s_state.tank_depth_mm_x10;
+	s_trend_samples[s_trend_index].timestamp_ms = now_ms;
+	s_last_trend_sample_ms = now_ms;
+
+	s_trend_index++;
+	if (s_trend_index >= BOARD_WATER_TREND_SAMPLES)
+	{
+		s_trend_index = 0U;
+	}
+	if (s_trend_count < BOARD_WATER_TREND_SAMPLES)
+	{
+		s_trend_count++;
+	}
 }
 
 // 函    数：WaterDepth_CheckSensorFailures
@@ -217,9 +269,13 @@ static void WaterDepth_CheckJump(uint32_t now_ms)
 {
 	int32_t basket_delta;
 	int32_t tank_delta;
+	int32_t tank_drop_rate_x10;
 	int32_t threshold_x10;
+	int32_t danger_rate_x10;
+	uint32_t elapsed_ms;
 
 	threshold_x10 = (int32_t)BOARD_WATER_JUMP_MM_PER_MIN * 10L;
+	danger_rate_x10 = (int32_t)BOARD_DROP_DANGER_RATE_MM_PER_MIN * 10L;
 
 	if (s_jump_ref_valid == 0U)
 	{
@@ -231,7 +287,8 @@ static void WaterDepth_CheckJump(uint32_t now_ms)
 		return;
 	}
 
-	if ((uint32_t)(now_ms - s_jump_ref_ms) < 60000U)
+	elapsed_ms = now_ms - s_jump_ref_ms;
+	if (elapsed_ms < 60000U)
 	{
 		// 水位突变阈值单位为 mm/min，未满 1 分钟不做判断。
 		return;
@@ -239,10 +296,19 @@ static void WaterDepth_CheckJump(uint32_t now_ms)
 
 	basket_delta = WaterDepth_Abs(s_state.basket_depth_mm_x10 - s_jump_ref_basket_mm_x10);
 	tank_delta = WaterDepth_Abs(s_state.tank_depth_mm_x10 - s_jump_ref_tank_mm_x10);
+	tank_drop_rate_x10 = WaterDepth_ComputeDropRateMmX10PerMin(s_jump_ref_tank_mm_x10,
+	                                                           s_state.tank_depth_mm_x10,
+	                                                           elapsed_ms);
 
-	if ((basket_delta > threshold_x10) || (tank_delta > threshold_x10))
+	if (tank_drop_rate_x10 > danger_rate_x10)
 	{
-		// 1 分钟内超过 10mm 变化，按水位突变故障处理。
+		// 鱼缸水位下降超过危险阈值时不继续跟随，直接按水位突变故障处理。
+		ErrorManager_Set(ERROR_CODE_E_WATER_JUMP);
+	}
+	else if ((tank_drop_rate_x10 < ((int32_t)BOARD_DROP_ENTRY_RATE_MM_PER_MIN * 10L)) &&
+	         ((basket_delta > threshold_x10) || (tank_delta > threshold_x10)))
+	{
+		// 非快速掉水形态的异常突变仍按故障处理，避免传感器松动或进水被当作可跟随事件。
 		ErrorManager_Set(ERROR_CODE_E_WATER_JUMP);
 	}
 
@@ -280,6 +346,15 @@ void WaterDepth_Init(void)
 	s_state.tank_depth_mm_x10 = 0L;
 	s_state.valid = 0U;
 	s_state.timestamp_ms = 0U;
+	for (i = 0U; i < BOARD_WATER_TREND_SAMPLES; i++)
+	{
+		s_trend_samples[i].basket_depth_mm_x10 = 0L;
+		s_trend_samples[i].tank_depth_mm_x10 = 0L;
+		s_trend_samples[i].timestamp_ms = 0UL;
+	}
+	s_trend_index = 0U;
+	s_trend_count = 0U;
+	s_last_trend_sample_ms = 0UL;
 	s_jump_ref_valid = 0U;
 	s_jump_ref_ms = 0U;
 	s_jump_ref_basket_mm_x10 = 0L;
@@ -320,6 +395,7 @@ void WaterDepth_Update(uint32_t now_ms)
 	s_state.valid = 1U;
 	s_state.timestamp_ms = now_ms;
 
+	WaterDepth_RecordTrendSample(now_ms);
 	WaterDepth_CheckPhysical();
 	WaterDepth_CheckRanges();
 	WaterDepth_CheckJump(now_ms);
@@ -338,4 +414,74 @@ WaterDepth_Status_t WaterDepth_GetState(WaterDepth_State_t *state)
 
 	*state = s_state;
 	return (s_state.valid != 0U) ? WATER_DEPTH_OK : WATER_DEPTH_PENDING;
+}
+
+// 函    数：WaterDepth_GetTrend
+// 参    数：now_ms 当前系统毫秒时间戳；window_ms 趋势窗口；min_samples 最小样本数；trend 输出趋势。
+// 返 回 值：趋势有效返回 OK；样本不足返回 PENDING；参数非法返回 ERROR_PARAM。
+// 注意事项：在固定 1s 趋势样本上寻找窗口内最早样本，避免主循环高速重复读数放大权重。
+WaterDepth_Status_t WaterDepth_GetTrend(uint32_t now_ms,
+                                        uint32_t window_ms,
+                                        uint8_t min_samples,
+                                        WaterDepth_Trend_t *trend)
+{
+	WaterDepth_TrendSample_t newest;
+	WaterDepth_TrendSample_t oldest;
+	uint8_t newest_index;
+	uint8_t i;
+	uint8_t idx;
+	uint8_t samples;
+
+	if ((trend == 0) || (window_ms == 0UL) || (min_samples == 0U))
+	{
+		return WATER_DEPTH_ERROR_PARAM;
+	}
+
+	trend->valid = 0U;
+	trend->sample_count = 0U;
+	trend->elapsed_ms = 0UL;
+	if ((s_state.valid == 0U) || (s_trend_count < min_samples))
+	{
+		return WATER_DEPTH_PENDING;
+	}
+
+	newest_index = (s_trend_index == 0U) ? (BOARD_WATER_TREND_SAMPLES - 1U) : (uint8_t)(s_trend_index - 1U);
+	newest = s_trend_samples[newest_index];
+	oldest = newest;
+	samples = 1U;
+
+	for (i = 1U; i < s_trend_count; i++)
+	{
+		idx = (newest_index >= i) ?
+		      (uint8_t)(newest_index - i) :
+		      (uint8_t)(BOARD_WATER_TREND_SAMPLES + newest_index - i);
+		if ((uint32_t)(now_ms - s_trend_samples[idx].timestamp_ms) > window_ms)
+		{
+			break;
+		}
+		oldest = s_trend_samples[idx];
+		samples++;
+	}
+
+	if ((samples < min_samples) || (newest.timestamp_ms == oldest.timestamp_ms))
+	{
+		return WATER_DEPTH_PENDING;
+	}
+
+	trend->valid = 1U;
+	trend->sample_count = samples;
+	trend->elapsed_ms = newest.timestamp_ms - oldest.timestamp_ms;
+	trend->oldest_basket_depth_mm_x10 = oldest.basket_depth_mm_x10;
+	trend->newest_basket_depth_mm_x10 = newest.basket_depth_mm_x10;
+	trend->oldest_tank_depth_mm_x10 = oldest.tank_depth_mm_x10;
+	trend->newest_tank_depth_mm_x10 = newest.tank_depth_mm_x10;
+	trend->basket_drop_rate_mm_x10_per_min =
+		WaterDepth_ComputeDropRateMmX10PerMin(oldest.basket_depth_mm_x10,
+		                                      newest.basket_depth_mm_x10,
+		                                      trend->elapsed_ms);
+	trend->tank_drop_rate_mm_x10_per_min =
+		WaterDepth_ComputeDropRateMmX10PerMin(oldest.tank_depth_mm_x10,
+		                                      newest.tank_depth_mm_x10,
+		                                      trend->elapsed_ms);
+	return WATER_DEPTH_OK;
 }

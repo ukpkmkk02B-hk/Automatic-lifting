@@ -613,6 +613,7 @@ static void Menu_RenderMain(void)
 		ctx.target_depth_mm_x10 = s_app_snapshot.target_depth_mm_x10;
 		ctx.run_days = s_app_snapshot.run_days;
 		ctx.motion_text = s_app_snapshot.motion_text;
+		ctx.notice_text = s_app_snapshot.notice_text;
 		ctx.next_nap_valid = s_app_snapshot.next_nap_valid;
 		ctx.next_nap_remaining_s = s_app_snapshot.next_nap_remaining_s;
 		ctx.today_done_pulses = s_app_snapshot.today_done_pulses;
@@ -633,6 +634,7 @@ static void Menu_RenderMain(void)
 		ctx.today_done_pulses = (s_param_record.today_pulses_done > 999UL) ?
 		                        999U : (uint16_t)s_param_record.today_pulses_done;
 		ctx.nap_pulses = s_param_record.nap_pulses;
+		ctx.notice_text = 0;
 		if (ErrorManager_HasFault() != 0U)
 		{
 			ctx.motion_text = "STOP";

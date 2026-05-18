@@ -47,7 +47,7 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - Default shallowing rate: `1mm/day`.
 - Maximum shallowing rate: `3mm/day`.
 - Target setting range: `5-100mm`.
-- Control tolerance: `±1mm`.
+- Control tolerance: `±1mm` stop deadband for closed-loop correction; low-frequency correction starts at `±2mm`; hard tracking fault threshold is `±5mm`.
 - No RTC in the current version. Running days and daily progress are based only on powered-on runtime.
 - Do not compensate missed movement during power loss.
 
@@ -82,7 +82,10 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - Stop automatic motion on repeated sensor read failure.
 - Stop automatic motion on repeated I2C recovery failure.
 - Stop automatic motion on tank low/high water, basket low/high water, water jump, pressure physical anomaly, or stall detection.
-- Stop automatic motion and raise `E_DEPTH_TRACKING` when target tracking error exceeds `±1mm`, restart depth difference exceeds `3mm`, or automatic/recovery depth freshness waits time out.
+- Stop automatic motion and raise `E_DEPTH_TRACKING` when target tracking hard error exceeds `±5mm`, low-frequency correction repeatedly fails to return inside the start deadband, restart depth difference exceeds `3mm`, or automatic/recovery depth freshness waits time out.
+- Automatic control arbitration priority is: hard safety faults and water-range faults first, fast tank-water drop follow second, low-frequency depth tracking third, daily nap shallowing fourth, idle/display last.
+- Fast tank-water drop follow may only move the basket downward. It must stop and enter pause with `CHECK WATER` after water level stabilizes, times out, or reaches the per-event distance limit; it must not resume automatic mode without human confirmation.
+- Low-frequency depth tracking may move up or down, but upward correction shares the same daily shallowing budget as daily nap movement. Downward correction and fast drop follow do not update `today_pulses_done`.
 - Buzzer silence must not clear fault state.
 - Manual movement after alarm is only allowed inside maintenance mode.
 - Limit protection must never be ignored, even in maintenance mode.
@@ -94,7 +97,7 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - `tank_max_depth_mm = 450`
 - `basket_min_safe_depth_mm = 5`
 - `basket_max_safe_depth_mm = 120`
-- Water jump threshold: `10mm/min`
+- Water jump threshold: non-followable sudden changes still use `10mm/min`; ordinary tank drop follow enters at `5mm/min` and dangerous drop above `30mm/min` raises `E_WATER_JUMP`.
 - Sensor consecutive failure alarm: `5` failures
 - I2C reinitialization failure alarm: `5` failures
 - Restart depth difference threshold: `3mm`
@@ -136,6 +139,8 @@ Required states:
 - `APP_MOTOR_RELEASE`
 - `APP_FAULT`
 
+Automatic sub-control uses an `auto_control` arbiter inside the automatic states. The arbiter decides between `AUTO` daily nap, `TRK` low-frequency correction, `DROP` fast tank-water drop follow, pause, or fault. STEP output remains centralized in the UM244 finite-pulse driver.
+
 Main control logic must live in the state machine, not inside interrupts or display code.
 
 ## Flash Persistence
@@ -151,7 +156,7 @@ Main control logic must live in the state machine, not inside interrupts or disp
 
 ## Power Recovery
 
-After reboot, run self-test first. If the previous state was automatic, all sensors and limits are normal, position is trusted, and depth difference is within `3mm`, automatically resume automatic running. Otherwise enter pause or fault and wait for human confirmation.
+After reboot, run self-test first. If the previous state was ordinary automatic or low-frequency tracking wait, all sensors and limits are normal, position is trusted, and depth difference is within `3mm`, automatically resume automatic running. If power was lost during a finite movement, do not continue the unfinished movement. If power was lost during fast drop follow, enter pause or fault after self-test and require human water-level confirmation. Otherwise enter pause or fault and wait for human confirmation.
 
 ## Non-Goals For Current Version
 
