@@ -84,8 +84,8 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - Stop automatic motion on tank low/high water, basket low/high water, water jump, pressure physical anomaly, or stall detection.
 - Stop automatic motion and raise `E_DEPTH_TRACKING` when target tracking hard error exceeds `±5mm`, low-frequency correction repeatedly fails to return inside the start deadband, restart depth difference exceeds `3mm`, or automatic/recovery depth freshness waits time out.
 - Automatic control arbitration priority is: hard safety faults and water-range faults first, fast tank-water drop follow second, low-frequency depth tracking third, daily nap shallowing fourth, idle/display last.
-- Fast tank-water drop follow may only move the basket downward. It must stop and enter pause with `CHECK WATER` after water level stabilizes, times out, or reaches the per-event distance limit; it must not resume automatic mode without human confirmation.
-- Low-frequency depth tracking may move up or down, but upward correction shares the same daily shallowing budget as daily nap movement. Downward correction and fast drop follow do not update `today_pulses_done`.
+- Fast tank-water drop follow may only move the basket downward. A `5-30mm/min` tank drop is followable only when basket depth also becomes shallow by the configured threshold; otherwise raise `E_WATER_JUMP`. It must stop and enter pause with `CHECK WATER` after water level stabilizes, times out, or reaches the per-event distance limit; it must not resume automatic mode without human confirmation.
+- Low-frequency depth tracking may move up or down. Error between the stop deadband and start deadband must block daily nap while observing. Upward correction shares the same daily shallowing budget as daily nap movement; if the upward budget is exhausted, do not fall back to daily nap. Downward correction and fast drop follow do not update `today_pulses_done`.
 - Buzzer silence must not clear fault state.
 - Manual movement after alarm is only allowed inside maintenance mode.
 - Limit protection must never be ignored, even in maintenance mode.
@@ -153,10 +153,11 @@ Main control logic must live in the state machine, not inside interrupts or disp
 - Save parameter changes immediately.
 - Save runtime state at most every 10 minutes, plus important transitions.
 - Do not write Flash after every nap pulse group.
+- Do not change the Flash record layout for the conservative v1 recovery policy; `BOARD_PARAM_VERSION` remains `1`. Reuse `PARAM_STORE_APP_NAP_MOVE` as a conservative finite-move/DROP recovery marker.
 
 ## Power Recovery
 
-After reboot, run self-test first. If the previous state was ordinary automatic or low-frequency tracking wait, all sensors and limits are normal, position is trusted, and depth difference is within `3mm`, automatically resume automatic running. If power was lost during a finite movement, do not continue the unfinished movement. If power was lost during fast drop follow, enter pause or fault after self-test and require human water-level confirmation. Otherwise enter pause or fault and wait for human confirmation.
+After reboot, run self-test first. If the previous state was ordinary automatic or low-frequency tracking wait, all sensors and limits are normal, position is trusted, and depth difference is within `3mm`, automatically resume automatic running. If the stored state is `PARAM_STORE_APP_NAP_MOVE` or the reused DROP recovery marker, do not continue or auto-resume the unfinished movement; show `CHECK WATER`, mark position untrusted, and require human water-level/position confirmation before automatic mode can run again. Otherwise enter pause or fault and wait for human confirmation.
 
 ## Non-Goals For Current Version
 
