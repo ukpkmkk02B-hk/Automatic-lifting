@@ -47,6 +47,7 @@ static MotionSource_t s_auto_source;
 static uint8_t s_auto_move_recorded;
 static uint8_t s_auto_position_applied;
 static uint8_t s_check_water_notice;
+static uint8_t s_drop_recovery_saved;
 static uint8_t s_manual_chunk_active;
 static StepperUM244_Direction_t s_manual_direction;
 
@@ -154,8 +155,7 @@ static int32_t AppState_Abs32(int32_t value)
 static uint8_t AppState_IsAutoStoredState(uint8_t state)
 {
 	return ((state == (uint8_t)PARAM_STORE_APP_AUTO_RUN) ||
-	        (state == (uint8_t)PARAM_STORE_APP_NAP_WAIT) ||
-	        (state == (uint8_t)PARAM_STORE_APP_NAP_MOVE)) ? 1U : 0U;
+	        (state == (uint8_t)PARAM_STORE_APP_NAP_WAIT)) ? 1U : 0U;
 }
 
 // 恢复关键状态入口必须先停 STEP，避免自动/手动脉冲跨状态继续输出。
@@ -192,16 +192,44 @@ static void AppState_SyncRecordRuntime(void)
 	NapScheduler_SyncRuntime(&s_record);
 }
 
-static void AppState_SaveState(uint32_t now_ms)
+static void AppState_SaveStateAs(ParamStore_AppState_t stored_state, uint32_t now_ms)
 {
 	AppState_SyncRecordRuntime();
+	s_record.last_app_state = (uint8_t)stored_state;
 	(void)ParamStore_ForceSaveRuntime(&s_record, now_ms);
+}
+
+static void AppState_SaveState(uint32_t now_ms)
+{
+	if ((s_check_water_notice != 0U) &&
+	    ((s_state == APP_STATE_PAUSED) || (s_state == APP_STATE_FAULT)))
+	{
+		if (s_drop_recovery_saved == 0U)
+		{
+			// CHECK WATER 复用 NAP_MOVE 作为保守恢复标记；重启后必须人工检查水位/位置。
+			AppState_SaveStateAs(PARAM_STORE_APP_NAP_MOVE, now_ms);
+			s_drop_recovery_saved = 1U;
+		}
+		return;
+	}
+
+	AppState_SaveStateAs(AppState_ToStoredState(s_state), now_ms);
+}
+
+static void AppState_SaveCriticalState(uint32_t now_ms)
+{
+	AppState_SaveState(now_ms);
 }
 
 static void AppState_SaveRuntimeIfDue(uint32_t now_ms)
 {
 	if ((s_state == APP_STATE_NAP_MOVE) || (StepperUM244_IsBusy() != 0U))
 	{
+		return;
+	}
+	if (s_check_water_notice != 0U)
+	{
+		// CHECK WATER 期间保留 NAP_MOVE/DROP 标记，避免 10min 运行保存覆盖保守恢复语义。
 		return;
 	}
 
@@ -239,7 +267,7 @@ static void AppState_Enter(AppState_State_t state, uint32_t now_ms)
 	    (state == APP_STATE_MAINTENANCE) ||
 	    (state == APP_STATE_MOTOR_RELEASE))
 	{
-		AppState_SaveState(now_ms);
+		AppState_SaveCriticalState(now_ms);
 	}
 }
 
@@ -509,6 +537,15 @@ static void AppState_HandleSelfTestPass(uint32_t now_ms)
 		AppState_Enter(APP_STATE_FAULT, now_ms);
 		return;
 	}
+	if (s_record.last_app_state == (uint8_t)PARAM_STORE_APP_NAP_MOVE)
+	{
+		// 断电时处在自动有限运动或 DROP 标记内，不能证明篮位/水位仍与 Flash 一致。
+		s_check_water_notice = 1U;
+		s_drop_recovery_saved = 1U;
+		PositionTracker_MarkUntrusted(POSITION_TRACKER_UNTRUSTED_INTERRUPTED_MOVE);
+		AppState_Enter(APP_STATE_FAULT, now_ms);
+		return;
+	}
 	if (AppState_IsAutoStoredState(s_record.last_app_state) == 0U)
 	{
 		AppState_Enter(APP_STATE_PAUSED, now_ms);
@@ -537,6 +574,7 @@ static void AppState_HandleSelfTestPass(uint32_t now_ms)
 	NapScheduler_ResetNext(now_ms);
 	AutoControl_Reset(now_ms);
 	s_check_water_notice = 0U;
+	s_drop_recovery_saved = 0U;
 	AppState_Enter(APP_STATE_AUTO_RUN, now_ms);
 }
 
@@ -574,6 +612,9 @@ static void AppState_UpdateMenuSnapshot(uint32_t now_ms)
 
 static void AppState_StartAuto(uint32_t now_ms)
 {
+	uint8_t had_check_water_notice;
+
+	had_check_water_notice = s_check_water_notice;
 	if (StepperUM244_IsMotorReleased() != 0U)
 	{
 		ErrorManager_Set(ERROR_CODE_E_MOTOR_RELEASED);
@@ -593,7 +634,13 @@ static void AppState_StartAuto(uint32_t now_ms)
 	NapScheduler_ResetNext(now_ms);
 	AutoControl_Reset(now_ms);
 	s_check_water_notice = 0U;
+	s_drop_recovery_saved = 0U;
 	AppState_Enter(APP_STATE_AUTO_RUN, now_ms);
+	if (had_check_water_notice != 0U)
+	{
+		// 人工确认水位/位置后重新启动自动运行，清掉保守恢复标记，避免下次重启重复提示。
+		AppState_SaveStateAs(PARAM_STORE_APP_AUTO_RUN, now_ms);
+	}
 }
 
 static uint8_t AppState_ManualMoveAllowed(StepperUM244_Direction_t direction)
@@ -850,6 +897,13 @@ static void AppState_BeginAutoMove(uint32_t now_ms, const AutoControl_Decision_t
 	s_auto_source = decision->source;
 	s_auto_move_recorded = 0U;
 	s_auto_position_applied = 0U;
+	if ((decision->source == MOTION_SOURCE_DROP_FOLLOW) &&
+	    (s_drop_recovery_saved == 0U))
+	{
+		// DROP 首次接管时只保存一次恢复标记；后续小步不反复擦写 Flash。
+		AppState_SaveStateAs(PARAM_STORE_APP_NAP_MOVE, now_ms);
+		s_drop_recovery_saved = 1U;
+	}
 }
 
 static void AppState_ApplyAutoCompletedPartial(uint32_t now_ms)
@@ -1067,6 +1121,7 @@ static void AppState_ServiceAutomatic(uint32_t now_ms)
 		}
 		if (decision.type == AUTO_CONTROL_DECISION_PAUSE)
 		{
+			// CHECK WATER 暂停由 AppState_SaveCriticalState() 复用 NAP_MOVE 保存保守恢复标记。
 			s_check_water_notice = decision.check_water_notice;
 			AutoControl_Reset(now_ms);
 			AppState_Enter(APP_STATE_PAUSED, now_ms);
@@ -1102,6 +1157,7 @@ void AppState_Init(uint32_t now_ms)
 	s_auto_move_recorded = 0U;
 	s_auto_position_applied = 0U;
 	s_check_water_notice = 0U;
+	s_drop_recovery_saved = 0U;
 	s_manual_chunk_active = 0U;
 	s_manual_direction = STEPPER_UM244_DIRECTION_DOWN;
 	NapScheduler_Init(&s_record, now_ms);

@@ -19,6 +19,8 @@ typedef enum
 	POSITION_TRACKER_UNTRUSTED_HOMING_STARTED,
 	// 电机被 MF 释放，机械位置可能被人工移动。
 	POSITION_TRACKER_UNTRUSTED_MOTOR_RELEASED,
+	// 自动有限脉冲或 DROP 恢复标记被断电中断，保存位置不能证明仍然精确。
+	POSITION_TRACKER_UNTRUSTED_INTERRUPTED_MOVE,
 	// 左右限位不一致，机械同步关系不可靠。
 	POSITION_TRACKER_UNTRUSTED_LIMIT_MISMATCH,
 	// 卡滞故障后位置估算不可靠。

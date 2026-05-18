@@ -129,7 +129,7 @@
 #define BOARD_NAP_MAX_PULSES             24U
 // 自动打盹最小间隔，单位 ms；防止菜单参数导致唤醒过于频繁。
 #define BOARD_NAP_MIN_INTERVAL_MS        300000UL
-// 自动目标水深允许误差，单位 mm_x10；超过 ±1.0mm 后续阶段应暂停报警。
+// 自动目标停止死区，单位 mm_x10；±1.0mm 内允许每日打盹，1.0..2.0mm 只观察并阻止继续变浅。
 #define BOARD_CONTROL_TOLERANCE_MM_X10   10
 // 自动打盹前后等待新鲜水深读数的最长时间，单位 ms；超时说明传感器链路不能支撑安全运动确认。
 #define BOARD_NAP_SENSOR_FRESH_TIMEOUT_MS 5000UL
@@ -164,9 +164,9 @@
 // 水深和传感器健康参数。
 // 水深阈值单位为 mm，滤波样本数为最近有效压力读数个数。
 #define BOARD_WATER_FILTER_SAMPLES       5U
-// 水深趋势缓存：每 1s 记录一次滤波水深，覆盖快速掉水 15s 判断窗口。
+// 水深趋势缓存：每 1s 记录一次滤波水深，覆盖快速掉水 30s 判断窗口。
 #define BOARD_WATER_TREND_SAMPLE_MS      1000UL
-#define BOARD_WATER_TREND_SAMPLES        20U
+#define BOARD_WATER_TREND_SAMPLES        40U
 #define BOARD_TANK_MIN_DEPTH_MM          250
 #define BOARD_TANK_MAX_DEPTH_MM          450
 #define BOARD_BASKET_MIN_SAFE_DEPTH_MM   5
@@ -190,13 +190,15 @@
 #define BOARD_DEPTH_TRACK_MAX_STEP_PULSES 400U
 #define BOARD_DEPTH_TRACK_FREQ_HZ        800U
 #define BOARD_DEPTH_TRACK_STABLE_WAIT_MS 15000UL
+// 低频闭环验证最长等待，单位 ms；传感器长期不稳定时按一次修正失败处理，避免永久卡在 TRK。
+#define BOARD_DEPTH_TRACK_VERIFY_TIMEOUT_MS 60000UL
 #define BOARD_DEPTH_TRACK_STABLE_SAMPLES 3U
 #define BOARD_DEPTH_TRACK_MAX_FAILURES   5U
 #define BOARD_DEPTH_TRACK_HOUR_LIMIT_PULSES 2400U
 #define BOARD_DEPTH_TRACK_DAY_LIMIT_PULSES 8000U
 
 // 快速掉水跟随参数。只允许框篮下降，普通 5..30mm/min 掉水可跟随，超过 30mm/min 报警。
-#define BOARD_DROP_TREND_WINDOW_MS       15000UL
+#define BOARD_DROP_TREND_WINDOW_MS       30000UL
 #define BOARD_DROP_TREND_MIN_SAMPLES     3U
 #define BOARD_DROP_ENTRY_RATE_MM_PER_MIN 5
 #define BOARD_DROP_DANGER_RATE_MM_PER_MIN 30
