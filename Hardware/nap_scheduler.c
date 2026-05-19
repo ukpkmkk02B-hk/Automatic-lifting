@@ -9,6 +9,7 @@ static uint8_t s_stall_ref_valid;
 static int32_t s_stall_ref_depth_mm_x10;
 static uint8_t s_stall_failure_count;
 
+// 限制单次打盹脉冲数；0 pulse 视为参数损坏并退回默认值。
 static uint16_t NapScheduler_ClampNapPulses(uint16_t pulses)
 {
 	if (pulses == 0U)
@@ -22,6 +23,7 @@ static uint16_t NapScheduler_ClampNapPulses(uint16_t pulses)
 	return pulses;
 }
 
+// 将每日变浅量 mm_x10/day 换算成今日自动变浅 pulse 预算。
 static uint32_t NapScheduler_GetDailyBudgetPulsesFromRecord(const ParamStore_Record_t *record)
 {
 	if ((record == 0) || (record->daily_shallow_mm_x10 <= 0L))
@@ -254,6 +256,7 @@ uint16_t NapScheduler_GetNextPulses(void)
 	return pulses;
 }
 
+// 判断本次运动是否计入每日自动变浅额度；只有向上变浅动作消耗预算。
 static uint8_t NapScheduler_ShouldCountDaily(MotionSource_t source,
                                              StepperUM244_Direction_t direction)
 {
@@ -266,6 +269,7 @@ static uint8_t NapScheduler_ShouldCountDaily(MotionSource_t source,
 	        (source == MOTION_SOURCE_DEPTH_TRACK_UP)) ? 1U : 0U;
 }
 
+// 判断本次自动运动是否需要纳入卡滞趋势检查；手动、回零和 DROP 不走此累计窗口。
 static uint8_t NapScheduler_ShouldCheckStall(MotionSource_t source)
 {
 	return ((source == MOTION_SOURCE_DAILY_SHALLOW) ||

@@ -14,11 +14,13 @@ static uint32_t s_beep_off_ms;
 static SelfTest_Status_t s_status;
 static uint8_t s_checked;
 
+// 判断启动自检等待时间是否到期，使用无符号差值兼容毫秒计数回绕。
 static uint8_t SelfTest_TimeElapsed(uint32_t now_ms, uint32_t start_ms, uint32_t interval_ms)
 {
 	return ((uint32_t)(now_ms - start_ms) >= interval_ms) ? 1U : 0U;
 }
 
+// 检查指定 WF5805F 传感器是否已有有效读数；不主动触发 I2C 采样。
 static uint8_t SelfTest_IsSensorOk(WF5805F_Sensor_t sensor)
 {
 	WF5805F_Reading_t reading;
@@ -31,6 +33,7 @@ static uint8_t SelfTest_IsSensorOk(WF5805F_Sensor_t sensor)
 	return (reading.valid != 0U) ? 1U : 0U;
 }
 
+// 检查 Flash 参数记录是否可用；读取失败时按默认参数验证，避免坏记录阻塞基础自检。
 static uint8_t SelfTest_AreParamsOk(void)
 {
 	ParamStore_Record_t record;

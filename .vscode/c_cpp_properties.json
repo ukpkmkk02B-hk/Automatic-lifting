@@ -11,8 +11,8 @@
             ],
             "defines": [
                 "USE_STDPERIPH_DRIVER",
-                "__CC_ARM",
                 "STM32F10X_MD",
+                "__CC_ARM",
                 "__arm__",
                 "__align(x)=",
                 "__ALIGNOF__(x)=",

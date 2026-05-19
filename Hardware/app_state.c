@@ -54,6 +54,10 @@ static StepperUM244_Direction_t s_manual_direction;
 static void AppState_ApplyAutoCompletedPartial(uint32_t now_ms);
 static void AppState_ApplyManualCompleted(void);
 
+// 函    数：AppState_ToStoredState
+// 参    数：state 当前运行态。
+// 返 回 值：Flash 恢复记录中的应用状态。
+// 注意事项：未知状态保守保存为 PAUSED，避免重启后自动追赶未知运动。
 static ParamStore_AppState_t AppState_ToStoredState(AppState_State_t state)
 {
 	switch (state)
@@ -80,6 +84,10 @@ static ParamStore_AppState_t AppState_ToStoredState(AppState_State_t state)
 	}
 }
 
+// 函    数：AppState_ToUiMode
+// 参    数：state 当前运行态。
+// 返 回 值：OLED 页面显示模式。
+// 注意事项：AUTO_RUN/NAP_WAIT/NAP_MOVE 统一显示为自动页，具体动作由 motion_text 区分。
 static UiPages_Mode_t AppState_ToUiMode(AppState_State_t state)
 {
 	switch (state)
@@ -103,6 +111,10 @@ static UiPages_Mode_t AppState_ToUiMode(AppState_State_t state)
 	}
 }
 
+// 函    数：AppState_GetMotionText
+// 参    数：state 当前运行态。
+// 返 回 值：4 字符以内 ASCII 运动状态文本。
+// 注意事项：DROP/CHECK WATER 恢复提示优先显示，便于人工确认水位和位置。
 static const char *AppState_GetMotionText(AppState_State_t state)
 {
 	switch (state)
@@ -147,11 +159,13 @@ static const char *AppState_GetMotionText(AppState_State_t state)
 	}
 }
 
+// 简单有符号绝对值工具，用于 mm_x10 误差比较。
 static int32_t AppState_Abs32(int32_t value)
 {
 	return (value < 0L) ? -value : value;
 }
 
+// 判断 Flash 中的恢复状态是否允许自检后尝试自动恢复。
 static uint8_t AppState_IsAutoStoredState(uint8_t state)
 {
 	return ((state == (uint8_t)PARAM_STORE_APP_AUTO_RUN) ||
@@ -167,6 +181,7 @@ static uint8_t AppState_ShouldStopBeforeEnter(AppState_State_t state)
 	        (state == APP_STATE_MOTOR_RELEASE)) ? 1U : 0U;
 }
 
+// 从 Flash 参数缓存加载运行记录；失败时退回默认值并同步蜂鸣器静音标志。
 static void AppState_LoadRecord(void)
 {
 	if (ParamStore_Load(&s_record) != PARAM_STORE_STATUS_OK)
@@ -176,6 +191,7 @@ static void AppState_LoadRecord(void)
 	ErrorManager_SetBuzzerMuted(s_record.buzzer_muted);
 }
 
+// 把当前运行状态、位置和最近水深同步到 s_record，供受控 Flash 保存使用。
 static void AppState_SyncRecordRuntime(void)
 {
 	WaterDepth_State_t depth;
@@ -192,6 +208,7 @@ static void AppState_SyncRecordRuntime(void)
 	NapScheduler_SyncRuntime(&s_record);
 }
 
+// 按指定恢复状态强制保存运行记录；仅用于关键状态切换或保守恢复标记。
 static void AppState_SaveStateAs(ParamStore_AppState_t stored_state, uint32_t now_ms)
 {
 	AppState_SyncRecordRuntime();
@@ -199,6 +216,7 @@ static void AppState_SaveStateAs(ParamStore_AppState_t stored_state, uint32_t no
 	(void)ParamStore_ForceSaveRuntime(&s_record, now_ms);
 }
 
+// 保存当前应用状态；CHECK WATER 场景复用 NAP_MOVE 表示重启后必须人工确认。
 static void AppState_SaveState(uint32_t now_ms)
 {
 	if ((s_check_water_notice != 0U) &&
@@ -216,11 +234,13 @@ static void AppState_SaveState(uint32_t now_ms)
 	AppState_SaveStateAs(AppState_ToStoredState(s_state), now_ms);
 }
 
+// 关键状态保存入口，便于集中保留故障/暂停/维护等恢复语义。
 static void AppState_SaveCriticalState(uint32_t now_ms)
 {
 	AppState_SaveState(now_ms);
 }
 
+// 按 10min 节流保存普通运行状态，运动中和 CHECK WATER 标记期间禁止覆盖恢复语义。
 static void AppState_SaveRuntimeIfDue(uint32_t now_ms)
 {
 	if ((s_state == APP_STATE_NAP_MOVE) || (StepperUM244_IsBusy() != 0U))
@@ -271,6 +291,7 @@ static void AppState_Enter(AppState_State_t state, uint32_t now_ms)
 	}
 }
 
+// 每秒累计上电运行时间；日切换只按通电秒数推进，不补偿断电期间错过的时间。
 static void AppState_ServiceSeconds(uint32_t now_ms)
 {
 	if ((uint32_t)(now_ms - s_last_second_ms) < 1000UL)
@@ -291,6 +312,10 @@ static void AppState_ServiceSeconds(uint32_t now_ms)
 	}
 }
 
+// 函    数：AppState_GetFreshDepth
+// 参    数：now_ms 当前时间；start_ms 等待起点；timeout_ms 超时门限；depth 输出水深。
+// 返 回 值：等待、已就绪或超时。
+// 注意事项：自动运动前后都要求 start_ms 之后的新鲜读数，避免用旧水深判断安全。
 static AppState_DepthResult_t AppState_GetFreshDepth(uint32_t now_ms,
                                                      uint32_t start_ms,
                                                      uint32_t timeout_ms,
@@ -318,6 +343,7 @@ static AppState_DepthResult_t AppState_GetFreshDepth(uint32_t now_ms,
 	return APP_DEPTH_WAIT;
 }
 
+// 检查当前框篮水深与目标水深的硬超差；超过 ±5mm_x10 阈值时停止自动控制。
 static uint8_t AppState_CheckDepthTolerance(void)
 {
 	WaterDepth_State_t depth;
@@ -340,6 +366,7 @@ static uint8_t AppState_CheckDepthTolerance(void)
 	return 1U;
 }
 
+// 第二次报警确认时复查根因；条件仍存在则重新锁存对应错误并阻止清故障。
 static uint8_t AppState_BlockFaultClearIf(uint8_t condition, ErrorCode_t code)
 {
 	if (condition != 0U)
@@ -351,6 +378,10 @@ static uint8_t AppState_BlockFaultClearIf(uint8_t condition, ErrorCode_t code)
 	return 0U;
 }
 
+// 函    数：AppState_CanClearLatchedFaults
+// 参    数：无
+// 返 回 值：1 表示可受控清除严重故障，0 表示根因仍存在。
+// 注意事项：静音不等于清故障；限位/I2C/传感器/水深/位置/电机释放都会阻止 ClearAll。
 static uint8_t AppState_CanClearLatchedFaults(void)
 {
 	WaterDepth_State_t depth;
@@ -464,6 +495,10 @@ static uint8_t AppState_CanClearLatchedFaults(void)
 	return (blocked == 0U) ? 1U : 0U;
 }
 
+// 函    数：AppState_CheckAutoSafety
+// 参    数：require_depth 非 0 时要求当前水深有效。
+// 返 回 值：1 表示可继续自动流程，0 表示已锁存故障。
+// 注意事项：自动模式必须保持电机、限位一致、位置可信，且不能在水深无效时运动。
 static uint8_t AppState_CheckAutoSafety(uint8_t require_depth)
 {
 	WaterDepth_State_t depth;
@@ -488,6 +523,10 @@ static uint8_t AppState_CheckAutoSafety(uint8_t require_depth)
 	return (ErrorManager_HasFault() == 0U) ? 1U : 0U;
 }
 
+// 函    数：AppState_RecoveryDepthMatches
+// 参    数：无
+// 返 回 值：1 表示重启后水深与 Flash 记录一致，0 表示必须人工确认。
+// 注意事项：差异超过 3mm 时不追赶断电期间错过的运动。
 static uint8_t AppState_RecoveryDepthMatches(void)
 {
 	WaterDepth_State_t depth;
@@ -518,6 +557,10 @@ static uint8_t AppState_RecoveryDepthMatches(void)
 	return 1U;
 }
 
+// 函    数：AppState_HandleSelfTestPass
+// 参    数：now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：只在开机自检通过后执行一次断电恢复判定；NAP_MOVE/DROP 标记必须转人工确认。
 static void AppState_HandleSelfTestPass(uint32_t now_ms)
 {
 	if (s_record.position_trusted != 0U)
@@ -578,6 +621,7 @@ static void AppState_HandleSelfTestPass(uint32_t now_ms)
 	AppState_Enter(APP_STATE_AUTO_RUN, now_ms);
 }
 
+// 汇总状态机、调度器和自检上下文到菜单快照；只更新显示数据，不改变运动状态。
 static void AppState_UpdateMenuSnapshot(uint32_t now_ms)
 {
 	Menu_AppSnapshot_t snapshot;
@@ -610,6 +654,10 @@ static void AppState_UpdateMenuSnapshot(uint32_t now_ms)
 	Menu_SetAppSnapshot(&snapshot);
 }
 
+// 函    数：AppState_StartAuto
+// 参    数：now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：人工确认后进入自动前重新检查电机、限位、位置、水深和目标误差。
 static void AppState_StartAuto(uint32_t now_ms)
 {
 	uint8_t had_check_water_notice;
@@ -643,6 +691,7 @@ static void AppState_StartAuto(uint32_t now_ms)
 	}
 }
 
+// 手动点动启动前检查当前故障、电机释放和目标方向限位，维护模式也不能绕过限位。
 static uint8_t AppState_ManualMoveAllowed(StepperUM244_Direction_t direction)
 {
 	if ((ErrorManager_HasFault() != 0U) &&
@@ -668,6 +717,7 @@ static uint8_t AppState_ManualMoveAllowed(StepperUM244_Direction_t direction)
 	return (Limit_IsDirectionBlocked(LIMIT_DIRECTION_DOWN) == 0U) ? 1U : 0U;
 }
 
+// 结算手动点动已输出的 STEP，避免松手或故障中断时丢失真实位移。
 static void AppState_ApplyManualCompleted(void)
 {
 	uint16_t pulses;
@@ -686,6 +736,7 @@ static void AppState_ApplyManualCompleted(void)
 	s_manual_chunk_active = 0U;
 }
 
+// 非阻塞处理手动保持按键；每次只发小段有限脉冲，松手立即停止并结算位置。
 static void AppState_ServiceManual(uint32_t now_ms, const Menu_Intents_t *intents)
 {
 	uint8_t hold;
@@ -748,6 +799,7 @@ static void AppState_ServiceManual(uint32_t now_ms, const Menu_Intents_t *intent
 	}
 }
 
+// 处理维护页意图：空气参考、回零、电机释放；自动运行状态不能直接执行维护动作。
 static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intents_t *intents)
 {
 	WF5805F_Reading_t air;
@@ -808,6 +860,10 @@ static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intent
 	}
 }
 
+// 函    数：AppState_HandleAlarmAck
+// 参    数：now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：严重故障第一次确认只静音，第二次也必须复查根因后才允许受控清除。
 static void AppState_HandleAlarmAck(uint32_t now_ms)
 {
 	ErrorCode_t primary;
@@ -859,6 +915,7 @@ static void AppState_HandleAlarmAck(uint32_t now_ms)
 	}
 }
 
+// 消费菜单产生的一次性用户意图，并把真正的运动/保存/清故障决策收敛到状态机。
 static void AppState_HandleMenuIntents(uint32_t now_ms, const Menu_Intents_t *intents)
 {
 	if (intents == 0)
@@ -887,6 +944,7 @@ static void AppState_HandleMenuIntents(uint32_t now_ms, const Menu_Intents_t *in
 	AppState_ServiceManual(now_ms, intents);
 }
 
+// 准备一次自动有限脉冲运动；DROP 来源首次进入时写入保守恢复标记。
 static void AppState_BeginAutoMove(uint32_t now_ms, const AutoControl_Decision_t *decision)
 {
 	s_nap_phase = APP_NAP_PHASE_PRE_DEPTH;
@@ -906,6 +964,7 @@ static void AppState_BeginAutoMove(uint32_t now_ms, const AutoControl_Decision_t
 	}
 }
 
+// 自动运动被故障/暂停中断时，按已完成 pulse 结算位置和调度状态。
 static void AppState_ApplyAutoCompletedPartial(uint32_t now_ms)
 {
 	uint16_t completed_pulses;
@@ -939,6 +998,10 @@ static void AppState_ApplyAutoCompletedPartial(uint32_t now_ms)
 	s_auto_move_recorded = 1U;
 }
 
+// 函    数：AppState_ServiceNapMove
+// 参    数：now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：自动有限脉冲分阶段执行：运动前水深、STEP 输出、运动后水深、卡滞/超差检查。
 static void AppState_ServiceNapMove(uint32_t now_ms)
 {
 	AppState_DepthResult_t depth_result;
@@ -1067,6 +1130,10 @@ static void AppState_ServiceNapMove(uint32_t now_ms)
 	AppState_Enter(APP_STATE_NAP_WAIT, now_ms);
 }
 
+// 函    数：AppState_ServiceAutomatic
+// 参    数：now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：自动模式统一仲裁 DROP、TRK 和每日打盹；任何故障都优先进入 FAULT。
 static void AppState_ServiceAutomatic(uint32_t now_ms)
 {
 	WaterDepth_State_t depth;

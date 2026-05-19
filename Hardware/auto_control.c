@@ -40,16 +40,19 @@ static uint32_t s_drop_stable_start_ms;
 static int32_t s_drop_hold_basket_mm_x10;
 static uint8_t s_drop_notice;
 
+// 简单有符号绝对值工具，用于 mm_x10 误差和趋势差值比较。
 static int32_t AutoControl_Abs32(int32_t value)
 {
 	return (value < 0L) ? -value : value;
 }
 
+// 把 32 位 pulse 计算结果限制到 uint16_t，防止单次运动命令溢出。
 static uint16_t AutoControl_LimitU16(uint32_t value, uint16_t max_value)
 {
 	return (value > (uint32_t)max_value) ? max_value : (uint16_t)value;
 }
 
+// 将 mm_x10 位移量换算为 STEP pulse，方向由调用方根据误差符号决定。
 static uint16_t AutoControl_PulsesFromMmX10(int32_t mm_x10)
 {
 	uint32_t abs_mm_x10;
@@ -60,6 +63,7 @@ static uint16_t AutoControl_PulsesFromMmX10(int32_t mm_x10)
 	return AutoControl_LimitU16(pulses, 0xFFFFU);
 }
 
+// 复位一次仲裁输出，默认保持“无动作”，避免沿用上一轮 MOVE/FAULT 决策。
 static void AutoControl_ClearDecision(AutoControl_Decision_t *decision)
 {
 	if (decision == 0)
@@ -77,6 +81,7 @@ static void AutoControl_ClearDecision(AutoControl_Decision_t *decision)
 	decision->check_water_notice = 0U;
 }
 
+// 重置低频水深闭环跟踪窗口；下一次检查从 now_ms 后重新排队。
 static void AutoControl_ResetTrack(uint32_t now_ms)
 {
 	s_track_state = AUTO_TRACK_IDLE;
@@ -88,6 +93,7 @@ static void AutoControl_ResetTrack(uint32_t now_ms)
 	s_track_failure_count = 0U;
 }
 
+// 重置快速掉水跟随状态；不修改 s_drop_notice，人工确认提示由上层清除。
 static void AutoControl_ResetDrop(void)
 {
 	s_drop_state = AUTO_DROP_IDLE;
@@ -97,6 +103,7 @@ static void AutoControl_ResetDrop(void)
 	s_drop_hold_basket_mm_x10 = 0L;
 }
 
+// 维护低频闭环的小时/每日 pulse 预算窗口，限制自动纠偏过度动作。
 static void AutoControl_ServiceTrackWindows(uint32_t now_ms)
 {
 	if ((uint32_t)(now_ms - s_track_hour_start_ms) >= 3600000UL)
@@ -111,6 +118,7 @@ static void AutoControl_ServiceTrackWindows(uint32_t now_ms)
 	}
 }
 
+// 检查本次低频向上纠偏是否仍在小时和每日 pulse 预算内。
 static uint8_t AutoControl_TrackBudgetAllows(uint16_t pulses)
 {
 	if ((s_track_hour_pulses + (uint32_t)pulses) > BOARD_DEPTH_TRACK_HOUR_LIMIT_PULSES)
@@ -124,6 +132,7 @@ static uint8_t AutoControl_TrackBudgetAllows(uint16_t pulses)
 	return 1U;
 }
 
+// 从水位趋势进入快速掉水跟随模式，基准框篮水深取窗口最早样本。
 static void AutoControl_StartDropFromTrend(const WaterDepth_Trend_t *trend, uint32_t now_ms)
 {
 	s_drop_state = AUTO_DROP_ACTIVE;
@@ -137,6 +146,7 @@ static void AutoControl_StartDropFromTrend(const WaterDepth_Trend_t *trend, uint
 	AutoControl_ResetTrack(now_ms);
 }
 
+// 监测是否满足快速掉水入口条件；危险掉水直接故障，可跟随掉水进入 DROP 模式。
 static void AutoControl_ServiceDropEntry(uint32_t now_ms,
                                          const AutoControl_Input_t *input,
                                          AutoControl_Decision_t *decision)
@@ -181,6 +191,7 @@ static void AutoControl_ServiceDropEntry(uint32_t now_ms,
 	AutoControl_StartDropFromTrend(&trend, now_ms);
 }
 
+// DROP 之外也持续监测危险掉水速率，避免等待常规入口时漏报快速失水。
 static void AutoControl_ServiceDangerDrop(uint32_t now_ms, AutoControl_Decision_t *decision)
 {
 	WaterDepth_Trend_t trend;
@@ -203,6 +214,7 @@ static void AutoControl_ServiceDangerDrop(uint32_t now_ms, AutoControl_Decision_
 	}
 }
 
+// DROP 模式下请求向下补深运动，受连续时间、总距离和稳定等待三重限制。
 static void AutoControl_RequestDropMove(uint32_t now_ms,
                                         const AutoControl_Input_t *input,
                                         AutoControl_Decision_t *decision)
@@ -288,6 +300,7 @@ static void AutoControl_RequestDropMove(uint32_t now_ms,
 	}
 }
 
+// 记录低频闭环未能稳定到目标的次数，达到阈值后升级为水深跟踪故障。
 static AutoControl_TrackResult_t AutoControl_RecordTrackFailure(uint32_t now_ms,
                                                                 AutoControl_Decision_t *decision)
 {
@@ -310,6 +323,7 @@ static AutoControl_TrackResult_t AutoControl_RecordTrackFailure(uint32_t now_ms,
 	return AUTO_TRACK_RESULT_BLOCK_DAILY;
 }
 
+// 等待低频纠偏后的水深稳定，并判断是否已进入目标死区。
 static AutoControl_TrackResult_t AutoControl_ServiceTrackStable(uint32_t now_ms,
                                                                 const AutoControl_Input_t *input,
                                                                 AutoControl_Decision_t *decision)
@@ -366,6 +380,7 @@ static AutoControl_TrackResult_t AutoControl_ServiceTrackStable(uint32_t now_ms,
 	return AutoControl_RecordTrackFailure(now_ms, decision);
 }
 
+// 根据当前框篮水深和目标水深决定是否发起一次低频闭环纠偏运动。
 static AutoControl_TrackResult_t AutoControl_RequestTrackMove(uint32_t now_ms,
                                                               const AutoControl_Input_t *input,
                                                               AutoControl_Decision_t *decision)
@@ -449,6 +464,7 @@ static AutoControl_TrackResult_t AutoControl_RequestTrackMove(uint32_t now_ms,
 	return AUTO_TRACK_RESULT_MOVE;
 }
 
+// 在没有 DROP 和低频纠偏需求时，按打盹调度请求每日自动变浅运动。
 static void AutoControl_RequestNapMove(const AutoControl_Input_t *input,
                                        AutoControl_Decision_t *decision)
 {
@@ -466,6 +482,10 @@ static void AutoControl_RequestNapMove(const AutoControl_Input_t *input,
 	decision->display = AUTO_CONTROL_DISPLAY_AUTO;
 }
 
+// 函    数：AutoControl_Init
+// 参    数：now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：初始化自动仲裁的预算窗口和状态机；不启动任何 STEP 输出。
 void AutoControl_Init(uint32_t now_ms)
 {
 	s_track_hour_start_ms = now_ms;
@@ -478,6 +498,10 @@ void AutoControl_Init(uint32_t now_ms)
 	AutoControl_ResetDrop();
 }
 
+// 函    数：AutoControl_Reset
+// 参    数：now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：用于暂停/故障恢复后清空 DROP/TRACK 临时状态；不清除外部故障锁存。
 void AutoControl_Reset(uint32_t now_ms)
 {
 	s_drop_notice = 0U;
@@ -486,6 +510,10 @@ void AutoControl_Reset(uint32_t now_ms)
 	AutoControl_ResetDrop();
 }
 
+// 函    数：AutoControl_Arbitrate
+// 参    数：now_ms 当前系统毫秒时间戳；input 自动控制输入；decision 输出本轮决策。
+// 返 回 值：无
+// 注意事项：仲裁优先级为危险掉水、DROP 跟随、低频闭环、每日打盹；本函数只给出决策，不直接驱动电机。
 void AutoControl_Arbitrate(uint32_t now_ms,
                            const AutoControl_Input_t *input,
                            AutoControl_Decision_t *decision)
@@ -541,6 +569,10 @@ void AutoControl_Arbitrate(uint32_t now_ms,
 	AutoControl_RequestNapMove(input, decision);
 }
 
+// 函    数：AutoControl_NotifyMoveComplete
+// 参    数：source 运动来源；direction 实际方向；pulses 完成脉冲；before/after 运动前后水深；now_ms 当前时间。
+// 返 回 值：无
+// 注意事项：完成后更新 TRACK 预算、DROP 距离或显示状态；Flash 记录由 app_state/nap_scheduler 负责。
 void AutoControl_NotifyMoveComplete(MotionSource_t source,
                                     StepperUM244_Direction_t direction,
                                     uint16_t pulses,
@@ -577,6 +609,10 @@ void AutoControl_NotifyMoveComplete(MotionSource_t source,
 	}
 }
 
+// 函    数：AutoControl_NotifyMoveAbort
+// 参    数：source 被中止的运动来源；now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：运动被限位、故障或暂停中止时清理对应自动控制状态，避免继续沿用旧基准。
 void AutoControl_NotifyMoveAbort(MotionSource_t source, uint32_t now_ms)
 {
 	if ((source == MOTION_SOURCE_DEPTH_TRACK_UP) ||
@@ -591,6 +627,10 @@ void AutoControl_NotifyMoveAbort(MotionSource_t source, uint32_t now_ms)
 	s_display = AUTO_CONTROL_DISPLAY_AUTO;
 }
 
+// 函    数：AutoControl_GetDisplay
+// 参    数：无
+// 返 回 值：当前自动控制建议显示模式。
+// 注意事项：DROP 提示锁存时优先显示 DROP，直到上层人工确认并重置状态。
 AutoControl_Display_t AutoControl_GetDisplay(void)
 {
 	if (s_drop_notice != 0U)
@@ -600,6 +640,10 @@ AutoControl_Display_t AutoControl_GetDisplay(void)
 	return s_display;
 }
 
+// 函    数：AutoControl_GetMotionText
+// 参    数：无
+// 返 回 值：4 字符以内 ASCII 运动模式文本。
+// 注意事项：仅供 OLED 状态显示，不代表电机底层实时 STEP 状态。
 const char *AutoControl_GetMotionText(void)
 {
 	switch (AutoControl_GetDisplay())

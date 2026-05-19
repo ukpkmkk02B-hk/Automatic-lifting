@@ -170,22 +170,100 @@ typedef struct
 // 注意事项：阻塞时间来自现有 OLED 软件 I2C 写屏；调用方应按 BOARD_UI_REFRESH_MS 周期刷新，不要在中断中调用。
 void UiPages_RenderFrame(UiPages_Frame_t frame);
 
+// 函    数：UiPages_FormatMain
+// 参    数：ctx 主页面输入上下文；frame 输出 4 行 x 16 字符页面缓存。
+// 返 回 值：无
+// 注意事项：只做字符串格式化，不读取传感器、不写 OLED。
 void UiPages_FormatMain(const UiPages_MainContext_t *ctx, UiPages_Frame_t frame);
+
+// 函    数：UiPages_FormatSelfTest
+// 参    数：ctx 自检页面输入上下文；frame 输出页面缓存。
+// 返 回 值：无
+// 注意事项：倒计时单位为 second；I2C 状态由调用方转换后传入。
 void UiPages_FormatSelfTest(const UiPages_SelfTestContext_t *ctx, UiPages_Frame_t frame);
+
+// 函    数：UiPages_FormatSensor
+// 参    数：ctx 传感器页面输入上下文；frame 输出页面缓存。
+// 返 回 值：无
+// 注意事项：压力单位 hPa_x100，水深单位 mm_x10；无效数据用占位符显示。
 void UiPages_FormatSensor(const UiPages_SensorContext_t *ctx, UiPages_Frame_t frame);
+
+// 函    数：UiPages_FormatLimit
+// 参    数：ctx 限位/位置页面输入上下文；frame 输出页面缓存。
+// 返 回 值：无
+// 注意事项：只展示 active-low/active-high 已归一化后的限位状态，不执行停机动作。
 void UiPages_FormatLimit(const UiPages_LimitContext_t *ctx, UiPages_Frame_t frame);
+
+// 函    数：UiPages_FormatParam
+// 参    数：ctx 参数页面输入上下文；frame 输出页面缓存。
+// 返 回 值：无
+// 注意事项：只显示当前参数和脏标志，参数范围校验和 Flash 保存由 menu/param_store 负责。
 void UiPages_FormatParam(const UiPages_ParamContext_t *ctx, UiPages_Frame_t frame);
+
+// 函    数：UiPages_FormatManual
+// 参    数：ctx 手动页面输入上下文；frame 输出页面缓存。
+// 返 回 值：无
+// 注意事项：limit_blocked 仅用于提示，实际 STEP 禁止由 app_state/limit 模块执行。
 void UiPages_FormatManual(const UiPages_ManualContext_t *ctx, UiPages_Frame_t frame);
+
+// 函    数：UiPages_FormatAlarm
+// 参    数：ctx 报警页面输入上下文；frame 输出页面缓存。
+// 返 回 值：无
+// 注意事项：蜂鸣器静音只作为显示状态，不代表故障已清除。
 void UiPages_FormatAlarm(const UiPages_AlarmContext_t *ctx, UiPages_Frame_t frame);
+
+// 函    数：UiPages_FormatMaintenance
+// 参    数：ctx 维护页面输入上下文；frame 输出页面缓存。
+// 返 回 值：无
+// 注意事项：维护确认文案来自调用方，本函数不启动回零、校准或电机释放。
 void UiPages_FormatMaintenance(const UiPages_MaintContext_t *ctx, UiPages_Frame_t frame);
 
+// 函    数：UiPages_RenderMain
+// 参    数：ctx 主页面输入上下文。
+// 返 回 值：无
+// 注意事项：内部先格式化再阻塞写 OLED，不要在中断中调用。
 void UiPages_RenderMain(const UiPages_MainContext_t *ctx);
+
+// 函    数：UiPages_RenderSelfTest
+// 参    数：ctx 自检页面输入上下文。
+// 返 回 值：无
+// 注意事项：阻塞式刷新 OLED，自检状态推进仍由 self_test/app_state 负责。
 void UiPages_RenderSelfTest(const UiPages_SelfTestContext_t *ctx);
+
+// 函    数：UiPages_RenderSensor
+// 参    数：ctx 传感器页面输入上下文。
+// 返 回 值：无
+// 注意事项：只显示最近读数和失败计数，不触发 I2C 重试。
 void UiPages_RenderSensor(const UiPages_SensorContext_t *ctx);
+
+// 函    数：UiPages_RenderLimit
+// 参    数：ctx 限位/位置页面输入上下文。
+// 返 回 值：无
+// 注意事项：只渲染状态，限位停机必须由安全逻辑完成。
 void UiPages_RenderLimit(const UiPages_LimitContext_t *ctx);
+
+// 函    数：UiPages_RenderParam
+// 参    数：ctx 参数页面输入上下文。
+// 返 回 值：无
+// 注意事项：不会写 Flash；保存动作由菜单确认键触发。
 void UiPages_RenderParam(const UiPages_ParamContext_t *ctx);
+
+// 函    数：UiPages_RenderManual
+// 参    数：ctx 手动页面输入上下文。
+// 返 回 值：无
+// 注意事项：只显示长按/限位状态，不直接输出 STEP 脉冲。
 void UiPages_RenderManual(const UiPages_ManualContext_t *ctx);
+
+// 函    数：UiPages_RenderAlarm
+// 参    数：ctx 报警页面输入上下文。
+// 返 回 值：无
+// 注意事项：只显示报警和静音状态，不清除 error_manager 锁存。
 void UiPages_RenderAlarm(const UiPages_AlarmContext_t *ctx);
+
+// 函    数：UiPages_RenderMaintenance
+// 参    数：ctx 维护页面输入上下文。
+// 返 回 值：无
+// 注意事项：维护动作必须由 app_state 根据菜单意图执行，本函数只写 OLED。
 void UiPages_RenderMaintenance(const UiPages_MaintContext_t *ctx);
 
 #endif

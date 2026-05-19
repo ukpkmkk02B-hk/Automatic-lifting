@@ -122,6 +122,7 @@ static int32_t WaterDepth_Abs(int32_t value)
 	return (value < 0L) ? -value : value;
 }
 
+// 按窗口首末水深计算下降速度，单位 mm_x10/min；水位上升时返回负值。
 static int32_t WaterDepth_ComputeDropRateMmX10PerMin(int32_t oldest_mm_x10,
                                                      int32_t newest_mm_x10,
                                                      uint32_t elapsed_ms)
@@ -139,6 +140,7 @@ static int32_t WaterDepth_ComputeDropRateMmX10PerMin(int32_t oldest_mm_x10,
 	                 (int64_t)elapsed_ms);
 }
 
+// 按固定采样周期记录趋势环形缓冲，避免主循环高频重复样本放大趋势权重。
 static void WaterDepth_RecordTrendSample(uint32_t now_ms)
 {
 	if ((s_trend_count != 0U) &&

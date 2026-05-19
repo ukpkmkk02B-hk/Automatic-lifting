@@ -51,11 +51,13 @@ static StepperUM244_Direction_t s_manual_direction;
 static Menu_AppSnapshot_t s_app_snapshot;
 static Menu_Intents_t s_pending_intents;
 
+// 判断无符号毫秒时间是否到期，兼容 SysTick 回绕。
 static uint8_t Menu_TimeElapsed(uint32_t now_ms, uint32_t last_ms, uint32_t interval_ms)
 {
 	return ((uint32_t)(now_ms - last_ms) >= interval_ms) ? 1U : 0U;
 }
 
+// 强制下一轮 Menu_Update 刷新 OLED，用于初始化或按键后立即更新页面。
 static void Menu_RequestRenderNow(uint32_t now_ms)
 {
 	if (now_ms >= BOARD_UI_REFRESH_MS)
@@ -68,6 +70,7 @@ static void Menu_RequestRenderNow(uint32_t now_ms)
 	}
 }
 
+// 清空菜单到 app_state 的一次性意图；长按手动意图在 Menu_GetIntents 中单独补充。
 static void Menu_ClearIntents(Menu_Intents_t *intents)
 {
 	if (intents == 0)
@@ -88,6 +91,7 @@ static void Menu_ClearIntents(Menu_Intents_t *intents)
 	intents->manual_down_hold = 0U;
 }
 
+// 启动一次 UI 短鸣，截止时间到后由 Menu_ServiceBuzzer 关闭。
 static void Menu_StartShortBeep(uint32_t now_ms)
 {
 	Buzzer_On();
@@ -123,6 +127,7 @@ static void Menu_ServiceBuzzer(uint32_t now_ms)
 	}
 }
 
+// 从 Flash 读取可编辑参数；读取失败时加载默认值供页面显示和后续保存。
 static void Menu_LoadParams(void)
 {
 	if (ParamStore_Load(&s_param_record) != PARAM_STORE_STATUS_OK)
@@ -131,6 +136,7 @@ static void Menu_LoadParams(void)
 	}
 }
 
+// 统计当前锁存/活动错误数量，用于报警页显示摘要。
 static uint8_t Menu_CountActiveErrors(void)
 {
 	uint8_t i;
@@ -148,6 +154,7 @@ static uint8_t Menu_CountActiveErrors(void)
 	return count;
 }
 
+// 切换到下一页；参数页会先在各参数项之间轮转，再退出参数页面。
 static void Menu_NextPage(void)
 {
 	if ((s_page == MENU_PAGE_PARAM) && (s_param_error == 0U))
@@ -178,6 +185,7 @@ static void Menu_NextPage(void)
 	}
 }
 
+// 进入维护确认页，确认完成或取消后回到 return_page。
 static void Menu_StartConfirm(Menu_Confirm_t confirm, Menu_Page_t return_page)
 {
 	s_confirm = confirm;
@@ -210,6 +218,7 @@ static int32_t Menu_GetMaxDailyShallowMmX10(uint16_t nap_pulses)
 	return (int32_t)max_daily_mm_x10;
 }
 
+// 按参数类型调整当前值，并立即做范围约束；真正写 Flash 必须等待保存确认。
 static void Menu_AdjustParam(int8_t delta)
 {
 	int32_t value;
@@ -291,6 +300,7 @@ static void Menu_AdjustParam(int8_t delta)
 	s_param_dirty = 1U;
 }
 
+// 保存当前参数页编辑结果；失败只置位参数告警，不改变已有有效 Flash 记录。
 static void Menu_SaveParam(uint32_t now_ms)
 {
 	ParamStore_Status_t status;
@@ -319,6 +329,7 @@ static void Menu_SaveParam(uint32_t now_ms)
 	}
 }
 
+// 处理参数页长按连续调整；重复周期由 BOARD_UI_PARAM_REPEAT_MS 限制。
 static void Menu_ServiceParamRepeat(uint32_t now_ms)
 {
 	if ((s_page != MENU_PAGE_PARAM) || (s_param_error != 0U))
@@ -373,12 +384,14 @@ static void Menu_ServiceManualMove(uint32_t now_ms)
 	}
 }
 
+// 报警页确认键只产生静音/确认意图，故障锁存是否允许清除由 app_state 判断。
 static void Menu_HandleAlarmKey(uint32_t now_ms)
 {
 	(void)now_ms;
 	s_pending_intents.alarm_ack = 1U;
 }
 
+// 维护页 OK 键分发校准、回零、电机释放确认和调试页面入口。
 static void Menu_HandleMaintenanceOk(uint32_t now_ms)
 {
 	if (s_in_maintenance == 0U)
@@ -410,6 +423,7 @@ static void Menu_HandleMaintenanceOk(uint32_t now_ms)
 	}
 }
 
+// 处理维护确认页按键；PAGE 取消，PAUSE/OK 确认并生成对应意图。
 static void Menu_HandleConfirm(uint32_t now_ms, uint16_t key_events)
 {
 	(void)now_ms;
@@ -449,6 +463,7 @@ static void Menu_HandleConfirm(uint32_t now_ms, uint16_t key_events)
 	s_confirm = MENU_CONFIRM_NONE;
 }
 
+// 汇总全部按键事件并转换为菜单状态或 app_state 意图；不直接驱动电机和 Flash 以外的硬件动作。
 static void Menu_HandleKeys(uint32_t now_ms, uint16_t key_events)
 {
 	if ((key_events & KEY_SCAN_EVENT_MAINTENANCE_ENTRY) != 0U)
@@ -573,6 +588,7 @@ static void Menu_HandleKeys(uint32_t now_ms, uint16_t key_events)
 	}
 }
 
+// 根据故障、维护、手动页和应用快照决定主页面的显示模式。
 static UiPages_Mode_t Menu_GetDisplayMode(void)
 {
 	if (ErrorManager_HasFault() != 0U)
@@ -599,6 +615,7 @@ static UiPages_Mode_t Menu_GetDisplayMode(void)
 	return UI_PAGES_MODE_AUTO;
 }
 
+// 组织主页面上下文；优先使用 app_state 快照，未就绪时用参数和传感器当前值降级显示。
 static void Menu_RenderMain(void)
 {
 	UiPages_MainContext_t ctx;
@@ -672,6 +689,7 @@ static void Menu_RenderMain(void)
 	UiPages_RenderMain(&ctx);
 }
 
+// 渲染自检页面；自检进行中优先显示 app_state/self_test 提供的倒计时快照。
 static void Menu_RenderSelfTest(void)
 {
 	UiPages_SelfTestContext_t ctx;
@@ -692,6 +710,7 @@ static void Menu_RenderSelfTest(void)
 	UiPages_RenderSelfTest(&ctx);
 }
 
+// 渲染传感器诊断页面，显示空气压力、水深和三路 I2C 恢复失败计数。
 static void Menu_RenderSensor(void)
 {
 	UiPages_SensorContext_t ctx;
@@ -725,6 +744,7 @@ static void Menu_RenderSensor(void)
 	UiPages_RenderSensor(&ctx);
 }
 
+// 渲染限位/位置页面，供维护时确认上下限和位置跟踪可信状态。
 static void Menu_RenderLimit(void)
 {
 	UiPages_LimitContext_t ctx;
@@ -739,6 +759,7 @@ static void Menu_RenderLimit(void)
 	UiPages_RenderLimit(&ctx);
 }
 
+// 渲染参数编辑页，显示当前参数、未保存标志和保存失败状态。
 static void Menu_RenderParam(void)
 {
 	UiPages_ParamContext_t ctx;
@@ -750,6 +771,7 @@ static void Menu_RenderParam(void)
 	UiPages_RenderParam(&ctx);
 }
 
+// 渲染手动点动页；页面状态来自菜单长按标志和限位禁止状态。
 static void Menu_RenderManual(void)
 {
 	UiPages_ManualContext_t ctx;
@@ -787,6 +809,7 @@ static void Menu_RenderManual(void)
 	UiPages_RenderManual(&ctx);
 }
 
+// 渲染报警页，展示最高优先级错误、错误等级、错误数量和蜂鸣器静音状态。
 static void Menu_RenderAlarm(void)
 {
 	UiPages_AlarmContext_t ctx;
@@ -798,6 +821,7 @@ static void Menu_RenderAlarm(void)
 	UiPages_RenderAlarm(&ctx);
 }
 
+// 渲染维护页，包含维护菜单、确认页和调试读数页三种视图。
 static void Menu_RenderMaintenance(void)
 {
 	UiPages_MaintContext_t ctx;
@@ -840,6 +864,7 @@ static void Menu_RenderMaintenance(void)
 	UiPages_RenderMaintenance(&ctx);
 }
 
+// 根据当前菜单页分发渲染；强制自检页用于启动阶段覆盖普通页面切换。
 static void Menu_RenderCurrent(void)
 {
 	if ((s_app_snapshot.valid != 0U) && (s_app_snapshot.force_self_test_page != 0U))
@@ -878,6 +903,10 @@ static void Menu_RenderCurrent(void)
 	}
 }
 
+// 函    数：Menu_Init
+// 参    数：now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：初始化菜单页、参数缓存、短鸣状态和待处理意图；不会启动自动运行。
 void Menu_Init(uint32_t now_ms)
 {
 	s_page = MENU_PAGE_MAIN;
@@ -901,6 +930,10 @@ void Menu_Init(uint32_t now_ms)
 	Menu_RequestRenderNow(now_ms);
 }
 
+// 函    数：Menu_SetAppSnapshot
+// 参    数：snapshot app_state 提供的显示快照；传入 0 表示快照无效。
+// 返 回 值：无
+// 注意事项：菜单只拷贝快照用于显示，不反向修改 app_state。
 void Menu_SetAppSnapshot(const Menu_AppSnapshot_t *snapshot)
 {
 	if (snapshot == 0)
@@ -911,6 +944,10 @@ void Menu_SetAppSnapshot(const Menu_AppSnapshot_t *snapshot)
 	s_app_snapshot = *snapshot;
 }
 
+// 函    数：Menu_GetIntents
+// 参    数：intents 输出一次性菜单意图。
+// 返 回 值：无
+// 注意事项：读取后会清空一次性意图；手动长按意图会按当前按键保持状态即时生成。
 void Menu_GetIntents(Menu_Intents_t *intents)
 {
 	if (intents == 0)
@@ -937,11 +974,19 @@ void Menu_GetIntents(Menu_Intents_t *intents)
 	Menu_ClearIntents(&s_pending_intents);
 }
 
+// 函    数：Menu_ReloadParams
+// 参    数：无
+// 返 回 值：无
+// 注意事项：外部保存或恢复参数后调用，使菜单缓存与 Flash 记录重新同步。
 void Menu_ReloadParams(void)
 {
 	Menu_LoadParams();
 }
 
+// 函    数：Menu_Update
+// 参    数：now_ms 当前系统毫秒时间戳；key_events 本轮按键边沿/长按事件位。
+// 返 回 值：无
+// 注意事项：主循环周期调用；处理蜂鸣、按键、参数连发、手动意图和 OLED 周期刷新。
 void Menu_Update(uint32_t now_ms, uint16_t key_events)
 {
 	Menu_ServiceBuzzer(now_ms);
