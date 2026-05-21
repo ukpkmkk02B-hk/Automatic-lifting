@@ -396,6 +396,9 @@ static void Menu_HandleMaintenanceOk(uint32_t now_ms)
 {
 	if (s_in_maintenance == 0U)
 	{
+		// 维护页可能只是被 PB0 翻到，还没有真正进入维护模式；
+		// 此时 PB10 先进入维护确认页，避免“1 CAL AIR”看起来按键无响应。
+		Menu_StartConfirm(MENU_CONFIRM_ENTER_MAINTENANCE, MENU_PAGE_MAINTENANCE);
 		return;
 	}
 
@@ -504,8 +507,11 @@ static void Menu_HandleKeys(uint32_t now_ms, uint16_t key_events)
 		Menu_NextPage();
 	}
 
-	if ((key_events & KEY_SCAN_EVENT_PAUSE_SHORT) != 0U)
+	if (((key_events & KEY_SCAN_EVENT_PAUSE_SHORT) != 0U) &&
+	    (s_page == MENU_PAGE_MAIN))
 	{
+		// 主页面保留 PB10 启停自动和报警确认；维护/参数/报警页由各自页面上下文处理，
+		// 防止维护动作和故障静音/清除意图在同一轮按键中互相抢占。
 		if (ErrorManager_HasFault() != 0U)
 		{
 			s_pending_intents.alarm_ack = 1U;

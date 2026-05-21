@@ -1,140 +1,142 @@
-# Hardware Bring-Up Checklist
+# 硬件上电调试清单
 
-Use this checklist after wiring the hardware and before putting fish into the basket. Do not skip directly to automatic mode.
+本清单用于硬件接线完成后、放入鱼只前的分阶段检查。不要跳过调试步骤直接进入自动模式。
 
-## 0. Preparation
+## 0. 准备
 
-- Keep the motor driver disabled or motor wires disconnected for the first electrical checks.
-- Keep the basket mechanically supported during early motor tests.
-- Confirm 24V wiring cannot touch STM32, OLED, keys, or WF5805F signal wires.
-- Keep a physical way to cut 24V power quickly.
+- 首次电气检查时，保持 UM244 电机驱动器未使能，或暂时断开电机线。
+- 早期电机测试期间，必须给框篮提供机械支撑，避免意外下滑。
+- 确认 24V 线路不会接触 STM32、OLED、按键或 WF5805F 信号线。
+- 现场必须保留一个可以快速切断 24V 电源的物理手段。
 
-## 1. Power Checks
+通过条件：现场具备安全断电手段，框篮不会因误动作或失电造成危险。
 
-- Measure 24V supply output before connecting UM244.
-- Adjust and measure the 24V-to-5V buck output before connecting it to the minimum system board or UM244 signal terminals.
-- Connect the 5V buck output to the minimum system board `5V` pin, not to the `3.3V` pin.
-- Confirm the same 5V buck output feeds UM244 `PU+`, `DR+`, and `MF+`.
-- After applying 5V to the minimum system board, measure the 3.3V rail before powering OLED, buzzer, and WF5805F boards.
-- Confirm STM32 GND, 5V buck GND, 24V supply negative, and UM244 signal reference GND are connected as designed.
-- Confirm no OLED, WF5805F, buzzer, or STM32 GPIO pin is connected directly to 5V.
-- Confirm 24V limit switch signals enter STM32 only through optocoupler isolation.
+## 1. 电源检查
 
-Pass condition: all supply voltages are correct; only the minimum system board `5V` power pin receives 5V, and no STM32 GPIO or 3.3V peripheral pin sees 5V or 24V directly.
+- 接入 UM244 前，先测量 24V 电源输出。
+- 接入最小系统板或 UM244 信号端前，先调好并测量 24V 转 5V 降压模块输出。
+- 5V 降压模块输出接 STM32 最小系统板 `5V` 引脚，不要接 `3.3V` 引脚。
+- 确认同一个 5V 输出供给 UM244 的 `PU+`、`DR+` 和 `MF+`。
+- 给最小系统板上 5V 后，先测量 3.3V 电源轨，再给 OLED、蜂鸣器和 WF5805F 模块供电。
+- 确认 STM32 GND、5V 降压 GND、24V 电源负极、UM244 信号侧参考地按设计连接。
+- 确认 OLED、WF5805F、蜂鸣器和 STM32 GPIO 没有任何引脚直接接到 5V。
+- 确认 24V 限位开关信号只通过光耦隔离后进入 STM32。
 
-## 2. STM32, OLED, Keys, Buzzer
+通过条件：所有电源电压正确；只有最小系统板 `5V` 电源脚接收 5V，任何 STM32 GPIO 或 3.3V 外设引脚都没有直接承受 5V 或 24V。
 
-- Flash a minimal firmware or the project firmware with motor output disabled.
-- Confirm OLED shows the self-test page.
-- Confirm buzzer short-beeps once at startup, then stays off.
-- Press `PB1`, `PB11`, `PB10`, and `PB0`; confirm OLED shows the expected key events.
-- Confirm `PA0` high turns buzzer off and `PA0` low turns buzzer on.
-- Confirm LED1/LED2 anodes connect to 3.3V through current-limiting resistors, cathodes connect to `PA6/PA7`, and low GPIO level turns the LEDs on.
+## 2. STM32、OLED、按键、蜂鸣器
 
-Pass condition: user interface works without motor power.
+- 烧录最小测试固件，或烧录本项目固件但保持电机输出关闭。
+- 确认 OLED 显示开机自检页面。
+- 确认蜂鸣器开机短鸣一次后关闭。
+- 分别按 `PB1`、`PB11`、`PB10`、`PB0`，确认 OLED 能显示或响应预期按键事件。
+- 确认 `PA0` 高电平关闭蜂鸣器，`PA0` 低电平打开蜂鸣器。
+- 确认 LED1/LED2 阳极通过限流电阻接 3.3V，阴极接 `PA6/PA7`，GPIO 低电平点亮、高电平熄灭。
 
-## 3. WF5805F Sensors
+通过条件：不接电机电源时，人机界面、按键、蜂鸣器和 LED 行为正确。
 
-- Confirm all three sensors respond on I2C.
-- Confirm OLED is alone on OLED-I2C `PB8/PB9`.
-- Confirm I2C-A `PA1/PA2` has `P_air`.
-- Confirm I2C-B `PB6/PB7` has `P_basket`.
-- Confirm I2C-C `PA8/PA9` has `P_tank`.
-- Confirm no I2C bus has more than one WF5805F module, and OLED does not share a bus with any WF5805F module.
-- Put all three sensors in the same air environment, wait for filtered readings to stabilize, then run maintenance `1 CAL AIR`.
-- Confirm the maintenance page shows saved `BAS/TNK` zero offsets and the sensor page shows `basket_depth_mm` and `tank_depth_mm` near `0.0mm` while all three sensors remain in air.
-- Put `P_tank` and `P_basket` back into water, confirm calculated depth increases with immersion depth, then clear any `TANK LOW` / `BASKET LOW` fault only after the real water depth is back in range.
-- Confirm `tank_depth_mm` and `basket_depth_mm` are plausible and stable after the 10 second startup wait.
+## 3. WF5805F 压力传感器
 
-Pass condition: no repeated I2C failures and depth direction is correct.
+- 确认三颗 WF5805F 都能被 I2C 读取。
+- 确认 OLED 独占 OLED-I2C：`PB8/PB9`。
+- 确认 I2C-A：`PA1/PA2` 连接 `P_air`。
+- 确认 I2C-B：`PB6/PB7` 连接 `P_basket`。
+- 确认 I2C-C：`PA8/PA9` 连接 `P_tank`。
+- 确认任意一条 I2C 总线上都没有两颗 WF5805F，OLED 也没有和任何 WF5805F 共用总线。
+- 将三颗传感器同时放在同一空气环境中，等待读数滤波稳定后，在维护菜单执行 `1 CAL AIR`。
+- 确认维护页显示已保存的 `BAS/TNK` 空气零点偏移；三颗传感器仍在空气中时，传感器页的 `basket_depth_mm` 和 `tank_depth_mm` 应接近 `0.0mm`。
+- 将 `P_tank` 和 `P_basket` 放回水中，确认计算水深会随浸入深度增加；只有在实际水深恢复到安全范围后，才清除可能出现的 `TANK LOW` / `BASKET LOW` 故障。
+- 开机等待 10 秒传感器稳定后，确认 `tank_depth_mm` 和 `basket_depth_mm` 数值合理且稳定。
 
-## 4. Limit Switches
+通过条件：没有连续 I2C 失败，水深方向正确，三传感器空气零点校准后水下读数合理。
 
-- With 24V limit switch power on, manually trigger each limit switch one at a time.
-- Confirm the isolation module is a 24V NPN input optocoupler module: sensor brown/blue/black stay on the 24V input side, and STM32 GPIO sees only the 3.3V output side.
-- The module shown in `Materials/npn型光耦隔离器-用于限位器信号输入.jpg` can be used here only as the 24V-input variant shown in `Materials/npn型光耦隔离器-用于限位器信号输入（详细版）.jpg`.
-- Confirm the four limit switches use four independent optocoupler input channels and four independent STM32 GPIO outputs.
-- Confirm the module output side `VCC` is connected to 3.3V, not 5V or 24V.
-- Before connecting STM32, power the module output side from 3.3V and verify `OUT` is never above 3.3V.
-- Confirm OLED shows:
-  - left upper
-  - left lower
-  - right upper
-  - right lower
-- Confirm untriggered state reads high and triggered state reads low.
-- Trigger left/right same-direction limits inconsistently and confirm firmware raises mismatch fault.
+## 4. 限位开关
 
-Pass condition: every limit input matches the physical switch and mismatch detection works.
+- 打开 24V 限位开关电源后，逐个手动触发每个限位开关。
+- 确认隔离模块是 24V NPN 输入光耦模块：传感器棕/蓝/黑线保持在 24V 输入侧，STM32 GPIO 只连接光耦的 3.3V 输出侧。
+- `Materials/npn型光耦隔离器-用于限位器信号输入.jpg` 中的模块只有在使用 24V 输入版本时才可用于限位输入，具体以 `Materials/npn型光耦隔离器-用于限位器信号输入（详细版）.jpg` 为准。
+- 确认四个限位开关分别使用四路独立光耦输入和四个独立 STM32 GPIO。
+- 确认光耦模块输出侧 `VCC` 接 3.3V，不接 5V 或 24V。
+- 接入 STM32 前，先用 3.3V 给模块输出侧供电，确认 `OUT` 电压不会超过 3.3V。
+- 确认 OLED 能显示四个限位状态：
+  - 左上限位
+  - 左下限位
+  - 右上限位
+  - 右下限位
+- 确认未触发时读高电平，触发时读低电平。
+- 人为制造左右同方向限位不一致，确认固件会上报限位不一致故障。
 
-## 5. UM244 Control Signals Without Motor Movement
+通过条件：每个限位输入都和物理开关一致，左右一致性检测有效。
 
-- Keep motors disconnected or driver disabled.
-- Confirm `STEP`, `DIR`, and `MF` outputs reach the level-shift circuit.
-- Confirm STEP/DIR/MF are wired from `PA3/PA4/PA5` respectively.
-- Confirm UM244 `PU+`, `DR+`, and `MF+` are tied to +5V.
-- Confirm STM32 GPIO is not directly connected to UM244 input plus terminals.
-- Confirm three independent single-channel optocoupler modules are used for STEP, DIR, and MF.
-- Confirm each module MCU-side `VCC` is 3.3V and each module output-side signal power is +5V.
-- Confirm each module output-side `OUT` goes to the matching UM244 minus terminal: STEP to `PU-`, DIR to `DR-`, MF to `MF-`.
-- Confirm STM32 low level pulls the matching UM244 minus terminal low, and STM32 high level releases it high.
-- With UM244 connected, measure each active-low minus terminal and confirm the low level is `0-0.5V`.
-- Confirm `MF` default state does not release the motor.
+## 5. UM244 控制信号，暂不让电机运动
 
-Pass condition: control signals are electrically correct before motor power tests.
+- 保持电机断开，或保持驱动器未使能。
+- 确认 `STEP`、`DIR`、`MF` 输出能到达电平转换电路。
+- 确认 STEP/DIR/MF 分别从 `PA3/PA4/PA5` 引出。
+- 确认 UM244 的 `PU+`、`DR+`、`MF+` 都接 +5V。
+- 确认 STM32 GPIO 没有直接接到 UM244 输入正端。
+- 确认 STEP、DIR、MF 各自使用独立的单路光耦模块。
+- 确认每个光耦模块 MCU 侧 `VCC` 为 3.3V，输出侧信号电源为 +5V。
+- 确认每个光耦模块输出侧 `OUT` 接到对应 UM244 负端：STEP 接 `PU-`，DIR 接 `DR-`，MF 接 `MF-`。
+- 确认 STM32 低电平能把对应 UM244 负端拉低，STM32 高电平能释放为高电平。
+- UM244 接入后，测量每个低有效负端，确认有效低电平为 `0-0.5V`。
+- 确认 `MF` 默认状态不会释放电机。
 
-## 6. Motor Direction And Current
+通过条件：控制信号电气连接正确，再进入带电机测试。
 
-- Set UM244 current to the recommended starting value, 2.5A.
-- Set UM244 microstep to 1600 pulse/rev.
-- Confirm automatic nap STEP frequency is 800Hz by default, or 400Hz if configured as the fallback.
-- Test one short manual movement at low speed.
-- Confirm both motors move in the same direction.
-- If one motor direction is reversed, swap the two wires inside one winding on that motor only, for example red/yellow or green/blue.
-- Confirm software "up" makes the basket move up and basket water depth become shallower.
-- Confirm software "down" makes the basket move down and basket water depth become deeper.
+## 6. 电机方向和电流
 
-Pass condition: both motors move synchronously and direction matches firmware labels.
+- 将 UM244 电流先设置为推荐起始值 `2.5A`。
+- 将 UM244 细分设置为 `1600 pulse/rev`。
+- 确认自动打盹 STEP 频率默认是 `800Hz`，或按配置降级为 `400Hz`。
+- 先低速执行一次短距离手动点动。
+- 确认两台电机运动方向一致。
+- 如果一台电机方向相反，只交换该电机同一绕组内的两根线，例如红/黄或绿/蓝。
+- 确认软件“上升”会让框篮向上移动，框篮水深变浅。
+- 确认软件“下降”会让框篮向下移动，框篮水深变深。
 
-## 7. Mechanical Limit Verification
+通过条件：两台电机同步运动，方向和固件标注一致。
 
-- Install the basket without fish.
-- Enter maintenance mode.
-- Long-press manual up and confirm upper limits stop upward movement.
-- Long-press manual down and confirm lower limits stop downward movement.
-- Confirm releasing the key immediately stops manual movement.
-- Confirm left/right mismatch stops all movement.
+## 7. 机械限位验证
 
-Pass condition: no movement command can bypass limit protection.
+- 不放鱼，先安装框篮。
+- 进入维护模式。
+- 长按手动上升，确认上限位能阻止继续上升。
+- 长按手动下降，确认下限位能阻止继续下降。
+- 确认松开按键后运动立即停止。
+- 确认左右限位不一致时会停止全部运动。
 
-## 8. Homing
+通过条件：任何运动命令都不能绕过限位保护。
 
-- Enter maintenance mode.
-- Run the mechanical homing procedure.
-- Confirm lower limit is detected.
-- Confirm the basket backs off and re-approaches the lower limit.
-- Confirm position becomes `basket_position_mm = 0`.
-- Confirm position trusted flag is set.
+## 8. 回零
 
-Pass condition: firmware has a trusted mechanical zero.
+- 进入维护模式。
+- 执行机械回零流程。
+- 确认下限位被检测到。
+- 确认框篮会退离限位后再次接近限位。
+- 确认位置变为 `basket_position_mm = 0`。
+- 确认位置可信标志已置位。
 
-## 9. Dry Run Without Fish
+通过条件：固件已经建立可信机械零点。
 
-- Fill the aquarium and basket to a safe test water level.
-- Run automatic mode without fish for at least 24 hours.
-- Confirm nap movement occurs at the expected interval.
-- Confirm motor and UM244 temperature remain reasonable.
-- Confirm I2C does not show repeated failures.
-- Confirm `basket_depth_mm` trend matches planned movement.
-- Confirm Flash recovery works after a controlled power cycle.
+## 9. 不放鱼干运行
 
-Pass condition: system can run automatically without faults for 24 hours.
+- 将鱼缸和框篮加水到安全测试水位。
+- 不放鱼，运行自动模式至少 24 小时。
+- 确认打盹动作按预期间隔发生。
+- 确认电机和 UM244 温升合理。
+- 确认 I2C 没有连续失败。
+- 确认 `basket_depth_mm` 趋势符合计划移动方向。
+- 受控断电再上电，确认 Flash 恢复行为正确。
 
-## 10. Before Using With Fish
+通过条件：系统能在无鱼条件下连续自动运行 24 小时且无故障。
 
-- Confirm final target depth and daily shallowing rate are correct.
-- Confirm low water alarm triggers if water is deliberately lowered below threshold.
-- Confirm buzzer silence does not clear the fault.
-- Confirm maintenance mode cannot ignore limit faults.
-- Confirm automatic mode resumes safely after a normal power cycle.
+## 10. 放鱼前最终确认
 
-Pass condition: automatic operation, safety alarms, and recovery behavior match the specification.
+- 确认最终目标水深和每日变浅速率设置正确。
+- 人为降低水位到阈值以下，确认低水位报警会触发。
+- 确认蜂鸣器静音不会清除故障状态。
+- 确认维护模式也不能忽略限位故障。
+- 确认正常断电再上电后，自动模式能按设计安全恢复。
+
+通过条件：自动运行、安全报警和断电恢复行为都符合规格后，才允许放入鱼只。
