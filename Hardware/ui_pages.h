@@ -160,8 +160,9 @@ typedef struct
 	uint8_t motor_released;
 	uint8_t position_trusted;
 	uint8_t homing_busy;
-	uint8_t air_reference_valid;
-	int32_t air_reference_hpa_x100;
+	uint8_t zero_offsets_valid;
+	int32_t basket_zero_offset_mm_x10;
+	int32_t tank_zero_offset_mm_x10;
 } UiPages_MaintContext_t;
 
 // 函    数：UiPages_RenderFrame

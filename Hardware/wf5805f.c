@@ -63,7 +63,7 @@ static int32_t WF5805F_ConvertRawPressure(uint8_t msb, uint8_t csb, uint8_t lsb)
 	value <<= 8;
 	value |= (int32_t)lsb;
 
-	if (value > 8388608L)
+	if (value >= 8388608L)
 	{
 		// 转换为带符号补码值，后续再按官方公式换算压力。
 		value -= 16777216L;
@@ -95,8 +95,9 @@ static int32_t WF5805F_CalcPressureHpaX100(int32_t raw)
 {
 	int64_t numerator;
 
-	// 官方公式：kPa = (500 * raw / 8388608 + 750) / 6；本驱动输出 hPa_x100。
-	numerator = ((int64_t)raw * 50000LL) + (750LL * 8388608LL);
+	// 官方公式：kPa = (500 * raw / 8388608 + 750) / 6；
+	// 本驱动输出 hPa_x100，因此需在整数公式中额外乘以 1000。
+	numerator = ((int64_t)raw * 500000LL) + (750000LL * 8388608LL);
 	return (int32_t)(numerator / (6LL * 8388608LL));
 }
 

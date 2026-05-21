@@ -3,6 +3,15 @@
 #include "board_config.h"
 #include "error_manager.h"
 
+#define WATER_DEPTH_ZERO_PACK_MARKER      0x50000000UL
+#define WATER_DEPTH_ZERO_PACK_MARKER_MASK 0xF0000000UL
+#define WATER_DEPTH_ZERO_PACK_BITS        14U
+#define WATER_DEPTH_ZERO_PACK_MASK        0x00003FFFUL
+#define WATER_DEPTH_ZERO_SIGN_BIT         0x00002000UL
+#define WATER_DEPTH_ZERO_SIGN_EXTEND      0x00004000L
+#define WATER_DEPTH_ZERO_OFFSET_MIN       (-8192L)
+#define WATER_DEPTH_ZERO_OFFSET_MAX       8191L
+
 typedef struct
 {
 	// 最近有效压力样本，单位 hPa_x100。
@@ -30,6 +39,8 @@ static uint8_t s_jump_ref_valid;
 static uint32_t s_jump_ref_ms;
 static int32_t s_jump_ref_basket_mm_x10;
 static int32_t s_jump_ref_tank_mm_x10;
+static int32_t s_basket_zero_offset_hpa_x100;
+static int32_t s_tank_zero_offset_hpa_x100;
 
 // 函    数：WaterDepth_IsSensorValid
 // 参    数：sensor WF5805F 传感器编号。
@@ -120,6 +131,29 @@ static uint8_t WaterDepth_FilterAverage(const WaterDepth_Filter_t *filter,
 static int32_t WaterDepth_Abs(int32_t value)
 {
 	return (value < 0L) ? -value : value;
+}
+
+// 将 -8192..8191 的有符号空气零点偏移编码为 14-bit 补码，便于两个偏移共用一个 Flash 字段。
+static uint32_t WaterDepth_EncodeS14(int32_t value)
+{
+	if (value < 0L)
+	{
+		return (uint32_t)(value + WATER_DEPTH_ZERO_SIGN_EXTEND) & WATER_DEPTH_ZERO_PACK_MASK;
+	}
+
+	return (uint32_t)value & WATER_DEPTH_ZERO_PACK_MASK;
+}
+
+// 将 14-bit 补码还原为 hPa_x100 偏移值；最高有效位为符号位。
+static int32_t WaterDepth_DecodeS14(uint32_t value)
+{
+	value &= WATER_DEPTH_ZERO_PACK_MASK;
+	if ((value & WATER_DEPTH_ZERO_SIGN_BIT) != 0UL)
+	{
+		return (int32_t)value - WATER_DEPTH_ZERO_SIGN_EXTEND;
+	}
+
+	return (int32_t)value;
 }
 
 // 按窗口首末水深计算下降速度，单位 mm_x10/min；水位上升时返回负值。
@@ -328,6 +362,98 @@ int32_t WaterDepth_ConvertPressureDiffToMmX10(int32_t diff_hpa_x100)
 	return (int32_t)(((int64_t)diff_hpa_x100 * 10197LL) / 10000LL);
 }
 
+// 函    数：WaterDepth_SetZeroOffsets
+// 参    数：basket_offset_hpa_x100 框篮传感器空气零点偏移，单位 hPa_x100。
+// 参    数：tank_offset_hpa_x100 鱼缸传感器空气零点偏移，单位 hPa_x100。
+// 返 回 值：无
+// 注意事项：只保存 RAM 中的运行校准值；Flash 持久化由 app_state/param_store 负责。
+void WaterDepth_SetZeroOffsets(int32_t basket_offset_hpa_x100,
+                               int32_t tank_offset_hpa_x100)
+{
+	s_basket_zero_offset_hpa_x100 = basket_offset_hpa_x100;
+	s_tank_zero_offset_hpa_x100 = tank_offset_hpa_x100;
+}
+
+// 函    数：WaterDepth_PackZeroOffsets
+// 参    数：basket_offset_hpa_x100/tank_offset_hpa_x100 空气零点偏移，单位 hPa_x100。
+// 参    数：packed 输出带标记的打包值。
+// 返 回 值：1 成功，0 失败。
+// 注意事项：使用 0x5 高半字节标记，避免把旧版保存的空气绝对压力误当作双零点偏移。
+uint8_t WaterDepth_PackZeroOffsets(int32_t basket_offset_hpa_x100,
+                                   int32_t tank_offset_hpa_x100,
+                                   int32_t *packed)
+{
+	uint32_t value;
+
+	if (packed == 0)
+	{
+		return 0U;
+	}
+	if ((basket_offset_hpa_x100 < WATER_DEPTH_ZERO_OFFSET_MIN) ||
+	    (basket_offset_hpa_x100 > WATER_DEPTH_ZERO_OFFSET_MAX) ||
+	    (tank_offset_hpa_x100 < WATER_DEPTH_ZERO_OFFSET_MIN) ||
+	    (tank_offset_hpa_x100 > WATER_DEPTH_ZERO_OFFSET_MAX))
+	{
+		return 0U;
+	}
+
+	value = WATER_DEPTH_ZERO_PACK_MARKER;
+	value |= WaterDepth_EncodeS14(basket_offset_hpa_x100) << WATER_DEPTH_ZERO_PACK_BITS;
+	value |= WaterDepth_EncodeS14(tank_offset_hpa_x100);
+	*packed = (int32_t)value;
+	return 1U;
+}
+
+// 函    数：WaterDepth_UnpackZeroOffsets
+// 参    数：packed Flash 中保存的打包值。
+// 参    数：basket_offset_hpa_x100/tank_offset_hpa_x100 输出空气零点偏移，单位 hPa_x100。
+// 返 回 值：1 表示打包校准有效，0 表示旧记录或未校准。
+// 注意事项：无有效标记时输出归零，系统仍可运行但同空气偏差不会被补偿。
+uint8_t WaterDepth_UnpackZeroOffsets(int32_t packed,
+                                     int32_t *basket_offset_hpa_x100,
+                                     int32_t *tank_offset_hpa_x100)
+{
+	uint32_t value;
+
+	if ((basket_offset_hpa_x100 == 0) || (tank_offset_hpa_x100 == 0))
+	{
+		return 0U;
+	}
+
+	value = (uint32_t)packed;
+	if ((value & WATER_DEPTH_ZERO_PACK_MARKER_MASK) != WATER_DEPTH_ZERO_PACK_MARKER)
+	{
+		*basket_offset_hpa_x100 = 0L;
+		*tank_offset_hpa_x100 = 0L;
+		return 0U;
+	}
+
+	*basket_offset_hpa_x100 =
+		WaterDepth_DecodeS14((value >> WATER_DEPTH_ZERO_PACK_BITS) & WATER_DEPTH_ZERO_PACK_MASK);
+	*tank_offset_hpa_x100 = WaterDepth_DecodeS14(value & WATER_DEPTH_ZERO_PACK_MASK);
+	return 1U;
+}
+
+// 函    数：WaterDepth_ConvertBasketDiffToMmX10
+// 参    数：diff_hpa_x100 实时框篮传感器与空气参考的差压，单位 hPa_x100。
+// 返 回 值：扣除维护空气零点后的框篮水深，单位 mm_x10。
+// 注意事项：安全控制统一使用该接口，避免固定传感器零偏造成 ±1mm 控制目标失真。
+int32_t WaterDepth_ConvertBasketDiffToMmX10(int32_t diff_hpa_x100)
+{
+	return WaterDepth_ConvertPressureDiffToMmX10(diff_hpa_x100 -
+	                                            s_basket_zero_offset_hpa_x100);
+}
+
+// 函    数：WaterDepth_ConvertTankDiffToMmX10
+// 参    数：diff_hpa_x100 实时鱼缸传感器与空气参考的差压，单位 hPa_x100。
+// 返 回 值：扣除维护空气零点后的鱼缸水深，单位 mm_x10。
+// 注意事项：只修正固定零点偏移，不改变水深比例和水位安全阈值。
+int32_t WaterDepth_ConvertTankDiffToMmX10(int32_t diff_hpa_x100)
+{
+	return WaterDepth_ConvertPressureDiffToMmX10(diff_hpa_x100 -
+	                                            s_tank_zero_offset_hpa_x100);
+}
+
 // 函    数：WaterDepth_Init
 // 参    数：无
 // 返 回 值：无
@@ -361,6 +487,8 @@ void WaterDepth_Init(void)
 	s_jump_ref_ms = 0U;
 	s_jump_ref_basket_mm_x10 = 0L;
 	s_jump_ref_tank_mm_x10 = 0L;
+	s_basket_zero_offset_hpa_x100 = 0L;
+	s_tank_zero_offset_hpa_x100 = 0L;
 }
 
 // 函    数：WaterDepth_Update
@@ -390,10 +518,9 @@ void WaterDepth_Update(uint32_t now_ms)
 	s_state.air_pressure_hpa_x100 = air;
 	s_state.basket_pressure_hpa_x100 = basket;
 	s_state.tank_pressure_hpa_x100 = tank;
-	// Stage 7 的 CAL AIR 只记录空气参考基线用于维护显示；水深仍严格使用实时 P_sensor - P_air 差压。
-	// 框篮/鱼缸水深都使用各自压力减去空气参考压力。
-	s_state.basket_depth_mm_x10 = WaterDepth_ConvertPressureDiffToMmX10(basket - air);
-	s_state.tank_depth_mm_x10 = WaterDepth_ConvertPressureDiffToMmX10(tank - air);
+	// 维护模式 CAL AIR 会记录三颗同空气时的固定零偏；实时水深先做传感器与空气参考差压，再扣除该零偏。
+	s_state.basket_depth_mm_x10 = WaterDepth_ConvertBasketDiffToMmX10(basket - air);
+	s_state.tank_depth_mm_x10 = WaterDepth_ConvertTankDiffToMmX10(tank - air);
 	s_state.valid = 1U;
 	s_state.timestamp_ms = now_ms;
 

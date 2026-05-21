@@ -41,8 +41,9 @@ Pass condition: user interface works without motor power.
 - Confirm I2C-B `PB6/PB7` has `P_basket`.
 - Confirm I2C-C `PA8/PA9` has `P_tank`.
 - Confirm no I2C bus has more than one WF5805F module, and OLED does not share a bus with any WF5805F module.
-- Keep `P_air` in air and confirm it is stable.
-- Put `P_tank` and `P_basket` into water and confirm calculated depth increases with immersion depth.
+- Put all three sensors in the same air environment, wait for filtered readings to stabilize, then run maintenance `1 CAL AIR`.
+- Confirm the maintenance page shows saved `BAS/TNK` zero offsets and the sensor page shows `basket_depth_mm` and `tank_depth_mm` near `0.0mm` while all three sensors remain in air.
+- Put `P_tank` and `P_basket` back into water, confirm calculated depth increases with immersion depth, then clear any `TANK LOW` / `BASKET LOW` fault only after the real water depth is back in range.
 - Confirm `tank_depth_mm` and `basket_depth_mm` are plausible and stable after the 10 second startup wait.
 
 Pass condition: no repeated I2C failures and depth direction is correct.

@@ -40,8 +40,8 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 
 ## Control Requirements
 
-- Calculate `basket_depth_mm` from `P_basket - P_air`.
-- Calculate `tank_depth_mm` from `P_tank - P_air`.
+- Calculate `basket_depth_mm` from `((P_basket - P_air) - zero_offset_basket) * 10.197`, where pressure terms are in hPa and `zero_offset_basket` is recorded by `CAL AIR` with all three sensors in the same air environment.
+- Calculate `tank_depth_mm` from `((P_tank - P_air) - zero_offset_tank) * 10.197`, where pressure terms are in hPa and `zero_offset_tank` is recorded by `CAL AIR` with all three sensors in the same air environment.
 - Default initial target depth: `100mm`.
 - Default final target depth: `10mm`.
 - Default shallowing rate: `1mm/day`.

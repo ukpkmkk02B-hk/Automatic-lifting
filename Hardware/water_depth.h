@@ -82,7 +82,47 @@ WaterDepth_Status_t WaterDepth_GetTrend(uint32_t now_ms,
 // 函    数：WaterDepth_ConvertPressureDiffToMmX10
 // 参    数：diff_hpa_x100 压力差，单位 hPa_x100。
 // 返 回 值：水深，单位 mm_x10。
-// 注意事项：按实时 P_sensor - P_air 差压换算；维护页 CAL AIR 记录值只作基线显示，不参与本函数修正。
+// 注意事项：只做物理单位换算，不扣除维护模式空气零点；用于显示校准偏移等纯差压场景。
 int32_t WaterDepth_ConvertPressureDiffToMmX10(int32_t diff_hpa_x100);
+
+// 函    数：WaterDepth_SetZeroOffsets
+// 参    数：basket_offset_hpa_x100 框篮传感器在空气中相对 P_air 的零点偏移，单位 hPa_x100。
+// 参    数：tank_offset_hpa_x100 鱼缸传感器在空气中相对 P_air 的零点偏移，单位 hPa_x100。
+// 返 回 值：无
+// 注意事项：维护模式三颗传感器同处空气时设置；后续水深计算会先扣除该固定偏移。
+void WaterDepth_SetZeroOffsets(int32_t basket_offset_hpa_x100,
+                               int32_t tank_offset_hpa_x100);
+
+// 函    数：WaterDepth_PackZeroOffsets
+// 参    数：basket_offset_hpa_x100 框篮空气零点偏移，单位 hPa_x100，范围 -8192..8191。
+// 参    数：tank_offset_hpa_x100 鱼缸空气零点偏移，单位 hPa_x100，范围 -8192..8191。
+// 参    数：packed 输出打包值，用于复用 Flash 记录中的 air_offset_hpa_x100 字段。
+// 返 回 值：1 表示打包成功，0 表示参数为空或偏移超出可保存范围。
+// 注意事项：打包值带标记位，旧版单空气压力记录不会被误识别为有效零点。
+uint8_t WaterDepth_PackZeroOffsets(int32_t basket_offset_hpa_x100,
+                                   int32_t tank_offset_hpa_x100,
+                                   int32_t *packed);
+
+// 函    数：WaterDepth_UnpackZeroOffsets
+// 参    数：packed Flash 中保存的打包值。
+// 参    数：basket_offset_hpa_x100 输出框篮空气零点偏移，单位 hPa_x100。
+// 参    数：tank_offset_hpa_x100 输出鱼缸空气零点偏移，单位 hPa_x100。
+// 返 回 值：1 表示存在有效打包校准；0 表示未校准或旧版记录，输出偏移归零。
+// 注意事项：断电重启后由 app_state 调用，并把结果传给 WaterDepth_SetZeroOffsets。
+uint8_t WaterDepth_UnpackZeroOffsets(int32_t packed,
+                                     int32_t *basket_offset_hpa_x100,
+                                     int32_t *tank_offset_hpa_x100);
+
+// 函    数：WaterDepth_ConvertBasketDiffToMmX10
+// 参    数：diff_hpa_x100 实时框篮传感器与空气参考的差压，单位 hPa_x100。
+// 返 回 值：扣除框篮空气零点后的水深，单位 mm_x10。
+// 注意事项：用于框篮控制水深，维护校准后空气中应接近 0.0mm。
+int32_t WaterDepth_ConvertBasketDiffToMmX10(int32_t diff_hpa_x100);
+
+// 函    数：WaterDepth_ConvertTankDiffToMmX10
+// 参    数：diff_hpa_x100 实时鱼缸传感器与空气参考的差压，单位 hPa_x100。
+// 返 回 值：扣除鱼缸空气零点后的水深，单位 mm_x10。
+// 注意事项：用于鱼缸整体水深安全判断，维护校准后空气中应接近 0.0mm。
+int32_t WaterDepth_ConvertTankDiffToMmX10(int32_t diff_hpa_x100);
 
 #endif

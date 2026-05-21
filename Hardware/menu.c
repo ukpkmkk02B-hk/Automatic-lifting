@@ -825,6 +825,8 @@ static void Menu_RenderAlarm(void)
 static void Menu_RenderMaintenance(void)
 {
 	UiPages_MaintContext_t ctx;
+	int32_t basket_zero_offset;
+	int32_t tank_zero_offset;
 
 	ctx.view = UI_PAGES_MAINT_MENU;
 	ctx.menu_index = s_maintenance_menu_index;
@@ -834,8 +836,11 @@ static void Menu_RenderMaintenance(void)
 	ctx.motor_released = StepperUM244_IsMotorReleased();
 	ctx.position_trusted = PositionTracker_IsTrusted();
 	ctx.homing_busy = Homing_IsBusy();
-	ctx.air_reference_valid = (s_param_record.air_offset_hpa_x100 != 0L) ? 1U : 0U;
-	ctx.air_reference_hpa_x100 = s_param_record.air_offset_hpa_x100;
+	ctx.zero_offsets_valid = WaterDepth_UnpackZeroOffsets(s_param_record.air_offset_hpa_x100,
+	                                                      &basket_zero_offset,
+	                                                      &tank_zero_offset);
+	ctx.basket_zero_offset_mm_x10 = WaterDepth_ConvertPressureDiffToMmX10(basket_zero_offset);
+	ctx.tank_zero_offset_mm_x10 = WaterDepth_ConvertPressureDiffToMmX10(tank_zero_offset);
 
 	if (s_confirm != MENU_CONFIRM_NONE)
 	{

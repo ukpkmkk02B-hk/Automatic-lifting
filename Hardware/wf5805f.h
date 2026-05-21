@@ -37,7 +37,7 @@ typedef enum
 
 typedef struct
 {
-	// 绝对压力，单位 hPa_x100。水深模块会用 P_sensor - P_air 做差压。
+	// 绝对压力，单位 hPa_x100。水深模块先做传感器与空气参考差压，再扣除维护空气零点。
 	int32_t pressure_hpa_x100;
 	// 温度，单位 摄氏度_x100，用于诊断传感器状态。
 	int16_t temperature_c_x100;

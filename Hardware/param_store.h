@@ -91,7 +91,8 @@ typedef struct
 	int32_t last_tank_depth_mm_x10;
 	// 最近一次有效框篮水深，单位 mm_x10。
 	int32_t last_basket_depth_mm_x10;
-	// 空气参考校准偏移，单位 hPa_x100。
+	// 维护空气零点校准打包值：保存 P_basket-P_air 和 P_tank-P_air 两个偏移，单位 hPa_x100。
+	// 注意事项：字段名沿用 v1 Flash 记录，布局和 BOARD_PARAM_VERSION 不变。
 	int32_t air_offset_hpa_x100;
 	// CRC16 校验值，覆盖本字段之前的记录内容。
 	uint16_t crc16;

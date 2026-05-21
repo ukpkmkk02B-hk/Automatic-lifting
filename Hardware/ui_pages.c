@@ -152,6 +152,28 @@ static void UiPages_WriteDepth4x1(char *line, uint8_t column, int32_t value_mm_x
 	UiPages_WriteDigit(line, (uint8_t)(column + 5U), (uint8_t)(abs_value % 10UL));
 }
 
+static void UiPages_WriteSignedDepth3x1(char *line, uint8_t column, int32_t value_mm_x10, uint8_t valid)
+{
+	uint32_t abs_value;
+
+	if (valid == 0U)
+	{
+		UiPages_WriteText(line, column, "----.-");
+		return;
+	}
+
+	abs_value = UiPages_Abs32(value_mm_x10);
+	if (abs_value > 9999UL)
+	{
+		abs_value = 9999UL;
+	}
+
+	line[column] = (value_mm_x10 < 0L) ? '-' : '+';
+	UiPages_WriteUint(line, (uint8_t)(column + 1U), 3U, abs_value / 10UL);
+	line[column + 4U] = '.';
+	UiPages_WriteDigit(line, (uint8_t)(column + 5U), (uint8_t)(abs_value % 10UL));
+}
+
 static void UiPages_WritePressure4x2(char *line, uint8_t column, int32_t value_hpa_x100, uint8_t valid)
 {
 	uint32_t abs_value;
@@ -707,7 +729,7 @@ void UiPages_FormatMaintenance(const UiPages_MaintContext_t *ctx, UiPages_Frame_
 	{
 		UiPages_WriteText(frame[0], 0U, "MAINT MENU 1/4");
 		UiPages_WriteText(frame[1], 0U, "1 CAL AIR");
-		UiPages_WriteText(frame[2], 0U, "REF ----.--hPa");
+		UiPages_WriteText(frame[2], 0U, "B----.- T----.-");
 		UiPages_WriteText(frame[3], 0U, "PB10 OK PB0 BK");
 		return;
 	}
@@ -742,12 +764,16 @@ void UiPages_FormatMaintenance(const UiPages_MaintContext_t *ctx, UiPages_Frame_
 	{
 	case 0U:
 		UiPages_WriteText(frame[1], 0U, "1 CAL AIR");
-		UiPages_WriteText(frame[2], 0U, "REF ");
-		UiPages_WritePressure4x2(frame[2],
-		                          4U,
-		                          ctx->air_reference_hpa_x100,
-		                          ctx->air_reference_valid);
-		UiPages_WriteText(frame[2], 11U, "hPa");
+		frame[2][0] = 'B';
+		UiPages_WriteSignedDepth3x1(frame[2],
+		                             1U,
+		                             ctx->basket_zero_offset_mm_x10,
+		                             ctx->zero_offsets_valid);
+		UiPages_WriteText(frame[2], 7U, " T");
+		UiPages_WriteSignedDepth3x1(frame[2],
+		                             9U,
+		                             ctx->tank_zero_offset_mm_x10,
+		                             ctx->zero_offsets_valid);
 		break;
 	case 1U:
 		UiPages_WriteText(frame[1], 0U, "2 HOME ZERO");

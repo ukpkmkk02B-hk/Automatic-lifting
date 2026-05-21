@@ -184,10 +184,17 @@ static uint8_t AppState_ShouldStopBeforeEnter(AppState_State_t state)
 // 从 Flash 参数缓存加载运行记录；失败时退回默认值并同步蜂鸣器静音标志。
 static void AppState_LoadRecord(void)
 {
+	int32_t basket_zero_offset;
+	int32_t tank_zero_offset;
+
 	if (ParamStore_Load(&s_record) != PARAM_STORE_STATUS_OK)
 	{
 		ParamStore_LoadDefaults(&s_record);
 	}
+	(void)WaterDepth_UnpackZeroOffsets(s_record.air_offset_hpa_x100,
+	                                   &basket_zero_offset,
+	                                   &tank_zero_offset);
+	WaterDepth_SetZeroOffsets(basket_zero_offset, tank_zero_offset);
 	ErrorManager_SetBuzzerMuted(s_record.buzzer_muted);
 }
 
@@ -802,7 +809,12 @@ static void AppState_ServiceManual(uint32_t now_ms, const Menu_Intents_t *intent
 // 处理维护页意图：空气参考、回零、电机释放；自动运行状态不能直接执行维护动作。
 static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intents_t *intents)
 {
-	WF5805F_Reading_t air;
+	WaterDepth_State_t depth;
+	ParamStore_Record_t candidate_record;
+	ParamStore_Status_t save_status;
+	int32_t basket_zero_offset;
+	int32_t tank_zero_offset;
+	int32_t packed_zero_offsets;
 
 	if (intents == 0)
 	{
@@ -825,12 +837,44 @@ static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intent
 
 	if (intents->air_calibrate != 0U)
 	{
-		if ((WF5805F_GetReading(WF5805F_SENSOR_AIR, &air) == WF5805F_OK) &&
-		    (air.valid != 0U))
+		if ((WaterDepth_GetState(&depth) == WATER_DEPTH_OK) &&
+		    (depth.valid != 0U) &&
+		    ((uint32_t)(now_ms - depth.timestamp_ms) <= BOARD_NAP_SENSOR_FRESH_TIMEOUT_MS))
 		{
-			s_record.air_offset_hpa_x100 = air.pressure_hpa_x100;
-			(void)ParamStore_SaveParameters(&s_record);
-			Menu_ReloadParams();
+			// CAL AIR 复用水深模块的 5 点滤波压力，避免把单次噪声或三路更新时间差永久写入 Flash。
+			basket_zero_offset = depth.basket_pressure_hpa_x100 - depth.air_pressure_hpa_x100;
+			tank_zero_offset = depth.tank_pressure_hpa_x100 - depth.air_pressure_hpa_x100;
+			if (WaterDepth_PackZeroOffsets(basket_zero_offset,
+			                               tank_zero_offset,
+			                               &packed_zero_offsets) == 0U)
+			{
+				ErrorManager_Set(ERROR_CODE_W_PARAM_REJECTED);
+				return;
+			}
+			candidate_record = s_record;
+			candidate_record.air_offset_hpa_x100 = packed_zero_offsets;
+			save_status = ParamStore_SaveParameters(&candidate_record);
+			if (save_status == PARAM_STORE_STATUS_OK)
+			{
+				// 保存接口会规范化 seq/crc16 并刷新参数缓存；重新读取后再同步运行态，避免 s_record 短暂落后于 Flash。
+				if ((ParamStore_Load(&s_record) == PARAM_STORE_STATUS_OK) &&
+				    (WaterDepth_UnpackZeroOffsets(s_record.air_offset_hpa_x100,
+				                                  &basket_zero_offset,
+				                                  &tank_zero_offset) != 0U))
+				{
+					WaterDepth_SetZeroOffsets(basket_zero_offset, tank_zero_offset);
+					ErrorManager_Clear(ERROR_CODE_W_PARAM_REJECTED);
+					Menu_ReloadParams();
+				}
+				else
+				{
+					ErrorManager_Set(ERROR_CODE_W_PARAM_REJECTED);
+				}
+			}
+			else
+			{
+				ErrorManager_Set(ERROR_CODE_W_PARAM_REJECTED);
+			}
 		}
 		else
 		{
