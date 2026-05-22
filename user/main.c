@@ -53,6 +53,25 @@ static void App_UpdateLeds(uint32_t now_ms)
 	}
 }
 
+// 函    数：App_IsBasketCommandMotionActive
+// 参    数：无
+// 返 回 值：1 表示 STEP 命令处于建立/输出/保持阶段；0 表示空闲或故障锁定。
+// 注意事项：FAULT 不是命令运动，不能用于刷新水深突变检测的 basket 基准。
+static uint8_t App_IsBasketCommandMotionActive(void)
+{
+	StepperUM244_State_t stepper_state;
+
+	stepper_state = StepperUM244_GetState();
+	if ((stepper_state == STEPPER_UM244_STATE_DIR_WAIT) ||
+	    (stepper_state == STEPPER_UM244_STATE_RUNNING) ||
+	    (stepper_state == STEPPER_UM244_STATE_HOLD_WAIT))
+	{
+		return 1U;
+	}
+
+	return 0U;
+}
+
 // 函    数：main
 // 参    数：无
 // 返 回 值：不会返回。
@@ -90,6 +109,8 @@ int main(void)
 		Homing_Update(g_app_ms);
 		App_UpdateLeds(g_app_ms);
 		WF5805F_Update(g_app_ms);
+		// 框篮命令运动期间，水深模块只抑制 basket_depth 自身变化导致的突变误报；tank_depth 安全判断保持有效。
+		WaterDepth_SetBasketMotionActive(App_IsBasketCommandMotionActive());
 		WaterDepth_Update(g_app_ms);
 
 		key_events = KeyScan_GetEvents();

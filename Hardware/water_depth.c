@@ -41,6 +41,7 @@ static int32_t s_jump_ref_basket_mm_x10;
 static int32_t s_jump_ref_tank_mm_x10;
 static int32_t s_basket_zero_offset_hpa_x100;
 static int32_t s_tank_zero_offset_hpa_x100;
+static uint8_t s_basket_motion_active;
 
 // 函    数：WaterDepth_IsSensorValid
 // 参    数：sensor WF5805F 传感器编号。
@@ -324,6 +325,12 @@ static void WaterDepth_CheckJump(uint32_t now_ms)
 	}
 
 	elapsed_ms = now_ms - s_jump_ref_ms;
+	if (s_basket_motion_active != 0U)
+	{
+		// 回零/手动/自动命令运动会让框篮水深按 0.5..1mm/s 改变。
+		// 这里只刷新框篮基准，避免命令运动本身被当作水位突变；鱼缸水位仍按原窗口监测。
+		s_jump_ref_basket_mm_x10 = s_state.basket_depth_mm_x10;
+	}
 	if (elapsed_ms < 60000U)
 	{
 		// 水位突变阈值单位为 mm/min，未满 1 分钟不做判断。
@@ -342,7 +349,8 @@ static void WaterDepth_CheckJump(uint32_t now_ms)
 		ErrorManager_Set(ERROR_CODE_E_WATER_JUMP);
 	}
 	else if ((tank_drop_rate_x10 < ((int32_t)BOARD_DROP_ENTRY_RATE_MM_PER_MIN * 10L)) &&
-	         ((basket_delta > threshold_x10) || (tank_delta > threshold_x10)))
+	         ((tank_delta > threshold_x10) ||
+	          ((s_basket_motion_active == 0U) && (basket_delta > threshold_x10))))
 	{
 		// 非快速掉水形态的异常突变仍按故障处理，避免传感器松动或进水被当作可跟随事件。
 		ErrorManager_Set(ERROR_CODE_E_WATER_JUMP);
@@ -372,6 +380,15 @@ void WaterDepth_SetZeroOffsets(int32_t basket_offset_hpa_x100,
 {
 	s_basket_zero_offset_hpa_x100 = basket_offset_hpa_x100;
 	s_tank_zero_offset_hpa_x100 = tank_offset_hpa_x100;
+}
+
+// 函    数：WaterDepth_SetBasketMotionActive
+// 参    数：active 非 0 表示 STEP 有限脉冲正在执行，0 表示框篮静止。
+// 返 回 值：无
+// 注意事项：该标志只影响框篮水深突变误报，不影响 tank_depth 的危险掉水报警。
+void WaterDepth_SetBasketMotionActive(uint8_t active)
+{
+	s_basket_motion_active = (active != 0U) ? 1U : 0U;
 }
 
 // 函    数：WaterDepth_PackZeroOffsets
@@ -489,6 +506,7 @@ void WaterDepth_Init(void)
 	s_jump_ref_tank_mm_x10 = 0L;
 	s_basket_zero_offset_hpa_x100 = 0L;
 	s_tank_zero_offset_hpa_x100 = 0L;
+	s_basket_motion_active = 0U;
 }
 
 // 函    数：WaterDepth_Update

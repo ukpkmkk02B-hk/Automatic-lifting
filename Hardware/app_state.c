@@ -49,6 +49,7 @@ static uint8_t s_auto_position_applied;
 static uint8_t s_check_water_notice;
 static uint8_t s_drop_recovery_saved;
 static uint8_t s_manual_chunk_active;
+static uint8_t s_homing_save_pending;
 static StepperUM244_Direction_t s_manual_direction;
 
 static void AppState_ApplyAutoCompletedPartial(uint32_t now_ms);
@@ -767,10 +768,14 @@ static void AppState_ServiceManual(uint32_t now_ms, const Menu_Intents_t *intent
 
 	if (hold == 0U)
 	{
-		if (s_state == APP_STATE_MANUAL)
+		if ((s_state == APP_STATE_MANUAL) || (s_manual_chunk_active != 0U))
 		{
+			// 手动页和维护页都使用同一小段有限脉冲；松手必须立即停止，不能等 80 pulse 小段自然结束。
 			StepperUM244_Stop();
 			AppState_ApplyManualCompleted();
+		}
+		if (s_state == APP_STATE_MANUAL)
+		{
 			AppState_Enter(s_manual_return_state, now_ms);
 		}
 		return;
@@ -815,6 +820,7 @@ static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intent
 	int32_t basket_zero_offset;
 	int32_t tank_zero_offset;
 	int32_t packed_zero_offsets;
+	Homing_Status_t homing_status;
 
 	if (intents == 0)
 	{
@@ -883,8 +889,19 @@ static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intent
 	}
 	if (intents->home_zero != 0U)
 	{
-		(void)Homing_Start(now_ms);
-		AppState_SaveState(now_ms);
+		homing_status = Homing_Start(now_ms);
+		if (homing_status == HOMING_STATUS_OK)
+		{
+			// 回零开始时先保存“不可信”；完成后由 AppState_ServiceHomingPersistence() 立即保存可信 0 点。
+			s_homing_save_pending = 1U;
+			AppState_SaveState(now_ms);
+		}
+		else if (homing_status != HOMING_STATUS_BUSY)
+		{
+			// 回零启动失败也可能已把位置标为不可信，需立即落盘，避免断电后恢复旧的可信位置。
+			s_homing_save_pending = 0U;
+			AppState_SaveState(now_ms);
+		}
 	}
 	if (intents->motor_release_toggle != 0U)
 	{
@@ -901,6 +918,36 @@ static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intent
 			ErrorManager_Clear(ERROR_CODE_E_MOTOR_RELEASED);
 			AppState_Enter(APP_STATE_MAINTENANCE, now_ms);
 		}
+	}
+}
+
+// 函    数：AppState_ServiceHomingPersistence
+// 参    数：now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：回零完成会把位置置为可信 0 pulse，必须立即写入 Flash，不能等 10min 运行保存。
+static void AppState_ServiceHomingPersistence(uint32_t now_ms)
+{
+	Homing_State_t homing_state;
+
+	if (s_homing_save_pending == 0U)
+	{
+		return;
+	}
+
+	if (Homing_IsComplete() != 0U)
+	{
+		AppState_SaveState(now_ms);
+		s_homing_save_pending = 0U;
+		return;
+	}
+
+	homing_state = Homing_GetState();
+	if ((homing_state == HOMING_STATE_IDLE) ||
+	    (homing_state == HOMING_STATE_FAULT) ||
+	    (homing_state == HOMING_STATE_CANCELLED))
+	{
+		// 失败或取消时已保持位置不可信，不再等待“完成保存”。
+		s_homing_save_pending = 0U;
 	}
 }
 
@@ -1270,6 +1317,7 @@ void AppState_Init(uint32_t now_ms)
 	s_check_water_notice = 0U;
 	s_drop_recovery_saved = 0U;
 	s_manual_chunk_active = 0U;
+	s_homing_save_pending = 0U;
 	s_manual_direction = STEPPER_UM244_DIRECTION_DOWN;
 	NapScheduler_Init(&s_record, now_ms);
 	AutoControl_Init(now_ms);
@@ -1309,6 +1357,7 @@ void AppState_Update(uint32_t now_ms, uint16_t key_events)
 	if (s_state != APP_STATE_SELF_TEST)
 	{
 		AppState_HandleMenuIntents(now_ms, &intents);
+		AppState_ServiceHomingPersistence(now_ms);
 		AppState_ServiceAutomatic(now_ms);
 	}
 

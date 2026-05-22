@@ -58,6 +58,12 @@ typedef struct
 // 注意事项：初始化 5 点压力滤波器和水深状态，初始状态为未有效。
 void WaterDepth_Init(void);
 
+// 函    数：WaterDepth_SetBasketMotionActive
+// 参    数：active 非 0 表示 STEP 底层正在执行命令运动，0 表示框篮静止。
+// 返 回 值：无
+// 注意事项：只用于抑制“命令运动导致的框篮水深变化”误报；鱼缸水位突变和危险掉水仍照常报警。
+void WaterDepth_SetBasketMotionActive(uint8_t active);
+
 // 函    数：WaterDepth_Update
 // 参    数：now_ms 系统毫秒时间戳。
 // 返 回 值：无

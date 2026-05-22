@@ -9,6 +9,7 @@
 
 // OLED 专用软件 I2C：PB8/PB9 只接 OLED，OLED 地址固定为 7-bit 0x3C。
 // 注意事项：三颗 WF5805F 地址相同，OLED 总线不能与任意 WF5805F 共用。
+#define BOARD_OLED_GPIO_RCC              BOARD_RCC_GPIOB
 #define BOARD_OLED_SCL_GPIO              GPIOB
 #define BOARD_OLED_SCL_PIN               GPIO_Pin_8
 #define BOARD_OLED_SDA_GPIO              GPIOB
