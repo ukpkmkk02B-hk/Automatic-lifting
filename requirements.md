@@ -97,7 +97,7 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - `tank_max_depth_mm = 450`
 - `basket_min_safe_depth_mm = 5`
 - `basket_max_safe_depth_mm = 120`
-- Water jump threshold: non-followable sudden changes still use `10mm/min`; ordinary tank drop follow enters at `5mm/min` and dangerous drop above `30mm/min` raises `E_WATER_JUMP`.
+- Water jump threshold: non-followable sudden changes still use `10mm/min`; commanded basket motion suppresses basket-only false jumps, while tank jumps and dangerous tank drop above `30mm/min` still raise `E_WATER_JUMP`; ordinary tank drop follow enters at `5mm/min`.
 - Sensor consecutive failure alarm: `5` failures
 - I2C reinitialization failure alarm: `5` failures
 - Restart depth difference threshold: `3mm`
