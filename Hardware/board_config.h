@@ -151,8 +151,8 @@
 #define BOARD_STEPPER_MAX_FREQ_HZ        5000U
 // 手动点动采用有限脉冲小段连续触发，80 pulse @800Hz 约 100ms；松手后可立即停止后续小段。
 #define BOARD_STEPPER_MANUAL_CHUNK_PULSES 80U
-// 位置范围：框篮机械最大行程 170mm，内部位置以 pulse 保存。
-#define BOARD_BASKET_MAX_TRAVEL_MM       170U
+// 位置范围：框篮机械最大行程 100mm，内部位置以 pulse 保存。
+#define BOARD_BASKET_MAX_TRAVEL_MM       100U
 #define BOARD_BASKET_MAX_POSITION_PULSES (BOARD_BASKET_MAX_TRAVEL_MM * BOARD_STEPPER_PULSE_PER_MM)
 // 回零参数：先离开下限位 1mm，再二次低速靠近；搜索上限防止无止境运动。
 #define BOARD_HOMING_BACKOFF_MM          1U

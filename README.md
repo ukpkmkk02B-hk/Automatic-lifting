@@ -24,20 +24,12 @@
 
 - MCU：STM32F103C8T6 最小系统板
 - 工具链：Keil5 + STM32 Standard Peripheral Library
-- 显示：0.96 寸 I2C OLED，软件 I2C `PB8/PB9`
+- 显示：0.96 寸 I2C OLED
 - 压力传感器：三颗 WF5805F 2Bar 绝压传感器，固定地址 `0x6D`
 - 电机驱动：UM244
 - 执行机构：两台 42HSC1409-250NE2 贯穿式丝杆步进电机并联到同一个 UM244 输出
 - 限位：四个 24V NPN 限位开关，经光耦隔离输入 STM32
 - 报警：低电平触发有源蜂鸣器
-
-三颗 WF5805F 地址相同，必须独占三条软件 I2C：
-
-| 传感器     | 软件 I2C  | 用途         |
-| ---------- | --------- | ------------ |
-| `P_air`    | `PA1/PA2` | 空气参考压力 |
-| `P_basket` | `PB6/PB7` | 框篮底部水深 |
-| `P_tank`   | `PA8/PA9` | 鱼缸整体水深 |
 
 ## 关键文档
 
@@ -66,7 +58,8 @@
 
 修改固件代码后，应重新构建 Keil 工程。只有看到 `0 Error(s), 0 Warning(s)` 才能声明固件编译验证通过。只修改 Markdown 文档时，至少运行：
 
-```powershell
+```
+powershell
 git diff --check
 ```
 

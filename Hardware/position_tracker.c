@@ -10,7 +10,7 @@ static PositionTracker_UntrustedReason_t s_untrusted_reason;
 // 函    数：PositionTracker_MaxPulses
 // 参    数：无
 // 返 回 值：机械最大行程对应的位置上限，单位 pulse。
-// 注意事项：最大行程 170mm，按 800 pulse/mm 换算。
+// 注意事项：最大行程 100mm，按 800 pulse/mm 换算。
 static int32_t PositionTracker_MaxPulses(void)
 {
 	return (int32_t)BOARD_BASKET_MAX_POSITION_PULSES;
