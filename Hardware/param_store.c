@@ -12,6 +12,20 @@ static uint32_t s_active_page_addr;
 static uint32_t s_next_seq;
 static uint32_t s_last_runtime_save_ms;
 
+#define PARAM_STORE_RECORDS_PER_PAGE \
+	((uint16_t)(BOARD_PARAM_FLASH_PAGE_SIZE / sizeof(ParamStore_Record_t)))
+#define PARAM_STORE_INVALID_SLOT_INDEX 0xFFFFU
+
+typedef struct
+{
+	ParamStore_Record_t latest_record;
+	uint8_t has_valid_record;
+	uint8_t has_empty_slot;
+	uint8_t has_damaged_slot;
+	uint16_t latest_slot;
+	uint16_t first_empty_slot;
+} ParamStore_PageScan_t;
+
 // 函    数：ParamStore_IsTimeElapsed
 // 参    数：now_ms 当前时间；last_ms 上次时间；interval_ms 间隔。
 // 返 回 值：达到间隔返回 1，否则返回 0。
@@ -31,7 +45,7 @@ static void ParamStore_CopyRecord(ParamStore_Record_t *dest, const ParamStore_Re
 }
 
 // 函    数：ParamStore_IsErasedRecord
-// 参    数：record Flash 页首部记录副本。
+// 参    数：record Flash 槽位记录副本。
 // 返 回 值：全 0xFF 返回 1，否则返回 0。
 // 注意事项：用于区分空白参数页和 CRC 损坏页。
 static uint8_t ParamStore_IsErasedRecord(const ParamStore_Record_t *record)
@@ -54,6 +68,15 @@ static uint8_t ParamStore_IsErasedRecord(const ParamStore_Record_t *record)
 	}
 
 	return 1U;
+}
+
+// 函    数：ParamStore_GetSlotAddress
+// 参    数：page_addr Flash 页起始地址；slot_index 页内记录槽位序号。
+// 返 回 值：槽位对应的 Flash 地址。
+// 注意事项：槽位大小固定为 ParamStore_Record_t；不新增 Flash 字段。
+static uint32_t ParamStore_GetSlotAddress(uint32_t page_addr, uint16_t slot_index)
+{
+	return page_addr + ((uint32_t)slot_index * (uint32_t)sizeof(ParamStore_Record_t));
 }
 
 // 函    数：ParamStore_NormalizeRecord
@@ -96,6 +119,14 @@ static uint8_t ParamStore_IsFlashLayoutValid(void)
 	{
 		return 0U;
 	}
+	if (((uint16_t)sizeof(ParamStore_Record_t) & 1U) != 0U)
+	{
+		return 0U;
+	}
+	if (PARAM_STORE_RECORDS_PER_PAGE == 0U)
+	{
+		return 0U;
+	}
 
 	return 1U;
 }
@@ -128,23 +159,27 @@ static uint8_t ParamStore_IsNapIntervalValid(int32_t daily_shallow_mm_x10, uint1
 	return (interval_ms >= BOARD_NAP_MIN_INTERVAL_MS) ? 1U : 0U;
 }
 
-// 函    数：ParamStore_ReadPage
-// 参    数：page_addr 参数页地址；record 输出记录副本。
+// 函    数：ParamStore_ReadSlot
+// 参    数：page_addr 参数页地址；slot_index 页内槽位；record 输出记录副本。
 // 返 回 值：记录校验状态。
-// 注意事项：只读取页首一条记录；A/B 页通过 seq 选择最新有效记录。
-static ParamStore_Status_t ParamStore_ReadPage(uint32_t page_addr, ParamStore_Record_t *record)
+// 注意事项：兼容旧页首记录；页内其它槽位为空时返回 ERROR_EMPTY。
+static ParamStore_Status_t ParamStore_ReadSlot(uint32_t page_addr,
+                                               uint16_t slot_index,
+                                               ParamStore_Record_t *record)
 {
 	const ParamStore_Record_t *flash_record;
+	uint32_t slot_addr;
 
-	if (record == 0)
+	if ((record == 0) || (slot_index >= PARAM_STORE_RECORDS_PER_PAGE))
 	{
 		return PARAM_STORE_STATUS_ERROR_PARAM;
 	}
 
+	slot_addr = ParamStore_GetSlotAddress(page_addr, slot_index);
 #ifdef PARAM_STORE_HOST_TEST
-	flash_record = (const ParamStore_Record_t *)(uintptr_t)page_addr;
+	flash_record = (const ParamStore_Record_t *)(uintptr_t)slot_addr;
 #else
-	flash_record = (const ParamStore_Record_t *)page_addr;
+	flash_record = (const ParamStore_Record_t *)slot_addr;
 #endif
 	ParamStore_CopyRecord(record, flash_record);
 
@@ -156,50 +191,106 @@ static ParamStore_Status_t ParamStore_ReadPage(uint32_t page_addr, ParamStore_Re
 	return ParamStore_ValidateRecord(record);
 }
 
-// 函    数：ParamStore_ReadLatest
-// 参    数：record 输出最新有效记录；page_addr 输出有效记录所在页地址。
-// 返 回 值：读取状态。
-// 注意事项：两页都有效时按 seq 选择较新记录；一页损坏不会影响另一页恢复。
-static ParamStore_Status_t ParamStore_ReadLatest(ParamStore_Record_t *record, uint32_t *page_addr)
+// 函    数：ParamStore_ScanPage
+// 参    数：page_addr 参数页地址；scan 输出页扫描结果。
+// 返 回 值：无
+// 注意事项：扫描整页固定槽位；CRC/范围错误的槽位只标记损坏，不参与恢复。
+static void ParamStore_ScanPage(uint32_t page_addr, ParamStore_PageScan_t *scan)
 {
-	ParamStore_Record_t page_a;
-	ParamStore_Record_t page_b;
-	ParamStore_Status_t status_a;
-	ParamStore_Status_t status_b;
+	ParamStore_Record_t candidate;
+	ParamStore_Status_t status;
+	uint16_t slot;
 
-	status_a = ParamStore_ReadPage(BOARD_PARAM_FLASH_PAGE_A_ADDR, &page_a);
-	status_b = ParamStore_ReadPage(BOARD_PARAM_FLASH_PAGE_B_ADDR, &page_b);
-
-	if ((status_a == PARAM_STORE_STATUS_OK) && (status_b == PARAM_STORE_STATUS_OK))
+	if (scan == 0)
 	{
-		if ((int32_t)(page_a.seq - page_b.seq) >= 0)
+		return;
+	}
+
+	(void)memset(scan, 0, sizeof(ParamStore_PageScan_t));
+	scan->latest_slot = PARAM_STORE_INVALID_SLOT_INDEX;
+	scan->first_empty_slot = PARAM_STORE_INVALID_SLOT_INDEX;
+
+	for (slot = 0U; slot < PARAM_STORE_RECORDS_PER_PAGE; slot++)
+	{
+		status = ParamStore_ReadSlot(page_addr, slot, &candidate);
+		if (status == PARAM_STORE_STATUS_OK)
 		{
-			ParamStore_CopyRecord(record, &page_a);
-			*page_addr = BOARD_PARAM_FLASH_PAGE_A_ADDR;
+			if ((scan->has_valid_record == 0U) ||
+			    ((int32_t)(candidate.seq - scan->latest_record.seq) >= 0))
+			{
+				ParamStore_CopyRecord(&scan->latest_record, &candidate);
+				scan->latest_slot = slot;
+			}
+			scan->has_valid_record = 1U;
+		}
+		else if (status == PARAM_STORE_STATUS_ERROR_EMPTY)
+		{
+			if (scan->has_empty_slot == 0U)
+			{
+				scan->first_empty_slot = slot;
+			}
+			scan->has_empty_slot = 1U;
 		}
 		else
 		{
-			ParamStore_CopyRecord(record, &page_b);
+			scan->has_damaged_slot = 1U;
+		}
+	}
+}
+
+// 函    数：ParamStore_ReadLatest
+// 参    数：record 输出最新有效记录；page_addr 输出页地址；slot_index 输出页内槽位。
+// 返 回 值：读取状态。
+// 注意事项：A/B 两页全部槽位都参与 CRC 校验；损坏记录不会覆盖旧有效记录。
+static ParamStore_Status_t ParamStore_ReadLatest(ParamStore_Record_t *record,
+                                                 uint32_t *page_addr,
+                                                 uint16_t *slot_index)
+{
+	ParamStore_PageScan_t scan_a;
+	ParamStore_PageScan_t scan_b;
+
+	if ((record == 0) || (page_addr == 0) || (slot_index == 0))
+	{
+		return PARAM_STORE_STATUS_ERROR_PARAM;
+	}
+
+	ParamStore_ScanPage(BOARD_PARAM_FLASH_PAGE_A_ADDR, &scan_a);
+	ParamStore_ScanPage(BOARD_PARAM_FLASH_PAGE_B_ADDR, &scan_b);
+
+	if ((scan_a.has_valid_record != 0U) && (scan_b.has_valid_record != 0U))
+	{
+		if ((int32_t)(scan_a.latest_record.seq - scan_b.latest_record.seq) >= 0)
+		{
+			ParamStore_CopyRecord(record, &scan_a.latest_record);
+			*page_addr = BOARD_PARAM_FLASH_PAGE_A_ADDR;
+			*slot_index = scan_a.latest_slot;
+		}
+		else
+		{
+			ParamStore_CopyRecord(record, &scan_b.latest_record);
 			*page_addr = BOARD_PARAM_FLASH_PAGE_B_ADDR;
+			*slot_index = scan_b.latest_slot;
 		}
 		return PARAM_STORE_STATUS_OK;
 	}
 
-	if (status_a == PARAM_STORE_STATUS_OK)
+	if (scan_a.has_valid_record != 0U)
 	{
-		ParamStore_CopyRecord(record, &page_a);
+		ParamStore_CopyRecord(record, &scan_a.latest_record);
 		*page_addr = BOARD_PARAM_FLASH_PAGE_A_ADDR;
+		*slot_index = scan_a.latest_slot;
 		return PARAM_STORE_STATUS_OK;
 	}
 
-	if (status_b == PARAM_STORE_STATUS_OK)
+	if (scan_b.has_valid_record != 0U)
 	{
-		ParamStore_CopyRecord(record, &page_b);
+		ParamStore_CopyRecord(record, &scan_b.latest_record);
 		*page_addr = BOARD_PARAM_FLASH_PAGE_B_ADDR;
+		*slot_index = scan_b.latest_slot;
 		return PARAM_STORE_STATUS_OK;
 	}
 
-	if ((status_a == PARAM_STORE_STATUS_ERROR_EMPTY) && (status_b == PARAM_STORE_STATUS_ERROR_EMPTY))
+	if ((scan_a.has_damaged_slot == 0U) && (scan_b.has_damaged_slot == 0U))
 	{
 		return PARAM_STORE_STATUS_ERROR_EMPTY;
 	}
@@ -207,13 +298,13 @@ static ParamStore_Status_t ParamStore_ReadLatest(ParamStore_Record_t *record, ui
 	return PARAM_STORE_STATUS_ERROR_CRC;
 }
 
-// 函    数：ParamStore_GetTargetPage
-// 参    数：无
-// 返 回 值：本次写入目标页。
-// 注意事项：始终写入非当前活动页，断电半写入时保留旧页有效记录。
-static uint32_t ParamStore_GetTargetPage(void)
+// 函    数：ParamStore_GetOtherPage
+// 参    数：page_addr 当前活动页地址。
+// 返 回 值：另一页地址。
+// 注意事项：仅在活动页满、损坏或不能安全追加时切页擦写。
+static uint32_t ParamStore_GetOtherPage(uint32_t page_addr)
 {
-	if (s_active_page_addr == BOARD_PARAM_FLASH_PAGE_A_ADDR)
+	if (page_addr == BOARD_PARAM_FLASH_PAGE_A_ADDR)
 	{
 		return BOARD_PARAM_FLASH_PAGE_B_ADDR;
 	}
@@ -221,25 +312,59 @@ static uint32_t ParamStore_GetTargetPage(void)
 	return BOARD_PARAM_FLASH_PAGE_A_ADDR;
 }
 
-// 函    数：ParamStore_ProgramRecord
-// 参    数：page_addr 目标页地址；record 待写入记录。
-// 返 回 值：Flash 操作状态。
-// 注意事项：先擦除目标页，再按 halfword 写入；旧活动页在写入完成前不擦除。
-static ParamStore_Status_t ParamStore_ProgramRecord(uint32_t page_addr, const ParamStore_Record_t *record)
+// 函    数：ParamStore_GetTargetLocation
+// 参    数：page_addr 输出目标页；slot_index 输出槽位；erase_page 输出是否需先擦页。
+// 返 回 值：目标选择状态。
+// 注意事项：优先追加当前活动页空槽；页满或有损坏槽时写入另一页槽 0。
+static ParamStore_Status_t ParamStore_GetTargetLocation(uint32_t *page_addr,
+                                                        uint16_t *slot_index,
+                                                        uint8_t *erase_page)
 {
-	const uint16_t *data;
-	uint32_t address;
-	uint16_t count;
-	uint16_t i;
-	FLASH_Status flash_status;
+	ParamStore_PageScan_t active_scan;
 
-	if ((record == 0) || (ParamStore_IsFlashLayoutValid() == 0U))
+	if ((page_addr == 0) || (slot_index == 0) || (erase_page == 0))
 	{
 		return PARAM_STORE_STATUS_ERROR_PARAM;
 	}
 
-	data = (const uint16_t *)record;
-	count = (uint16_t)(sizeof(ParamStore_Record_t) / 2U);
+	if ((s_active_page_addr == BOARD_PARAM_FLASH_PAGE_A_ADDR) ||
+	    (s_active_page_addr == BOARD_PARAM_FLASH_PAGE_B_ADDR))
+	{
+		ParamStore_ScanPage(s_active_page_addr, &active_scan);
+		if ((active_scan.has_valid_record != 0U) &&
+		    (active_scan.has_damaged_slot == 0U) &&
+		    (active_scan.has_empty_slot != 0U))
+		{
+			*page_addr = s_active_page_addr;
+			*slot_index = active_scan.first_empty_slot;
+			*erase_page = 0U;
+			return PARAM_STORE_STATUS_OK;
+		}
+
+		*page_addr = ParamStore_GetOtherPage(s_active_page_addr);
+		*slot_index = 0U;
+		*erase_page = 1U;
+		return PARAM_STORE_STATUS_OK;
+	}
+
+	*page_addr = BOARD_PARAM_FLASH_PAGE_A_ADDR;
+	*slot_index = 0U;
+	*erase_page = 1U;
+	return PARAM_STORE_STATUS_OK;
+}
+
+// 函    数：ParamStore_ErasePage
+// 参    数：page_addr 目标页地址。
+// 返 回 值：Flash 操作状态。
+// 注意事项：只在页面需要滚转或首次保存时擦除；普通追加不擦页。
+static ParamStore_Status_t ParamStore_ErasePage(uint32_t page_addr)
+{
+	FLASH_Status flash_status;
+
+	if (ParamStore_IsFlashLayoutValid() == 0U)
+	{
+		return PARAM_STORE_STATUS_ERROR_PARAM;
+	}
 
 	FLASH_Unlock();
 	FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
@@ -251,7 +376,38 @@ static ParamStore_Status_t ParamStore_ProgramRecord(uint32_t page_addr, const Pa
 		return PARAM_STORE_STATUS_ERROR_FLASH;
 	}
 
-	address = page_addr;
+	FLASH_Lock();
+	return PARAM_STORE_STATUS_OK;
+}
+
+// 函    数：ParamStore_ProgramSlot
+// 参    数：page_addr 目标页地址；slot_index 页内槽位；record 待写入记录。
+// 返 回 值：Flash 操作状态。
+// 注意事项：只写已擦除槽位；A/B 旧有效记录在新槽位校验通过前仍可用于恢复。
+static ParamStore_Status_t ParamStore_ProgramSlot(uint32_t page_addr,
+                                                  uint16_t slot_index,
+                                                  const ParamStore_Record_t *record)
+{
+	const uint16_t *data;
+	uint32_t address;
+	uint16_t count;
+	uint16_t i;
+	FLASH_Status flash_status;
+
+	if ((record == 0) ||
+	    (slot_index >= PARAM_STORE_RECORDS_PER_PAGE) ||
+	    (ParamStore_IsFlashLayoutValid() == 0U))
+	{
+		return PARAM_STORE_STATUS_ERROR_PARAM;
+	}
+
+	data = (const uint16_t *)record;
+	count = (uint16_t)(sizeof(ParamStore_Record_t) / 2U);
+	address = ParamStore_GetSlotAddress(page_addr, slot_index);
+
+	FLASH_Unlock();
+	FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
+
 	for (i = 0U; i < count; i++)
 	{
 		flash_status = FLASH_ProgramHalfWord(address, data[i]);
@@ -270,7 +426,7 @@ static ParamStore_Status_t ParamStore_ProgramRecord(uint32_t page_addr, const Pa
 // 函    数：ParamStore_SaveInternal
 // 参    数：record 待保存记录；now_ms 当前时间；update_runtime_time 非 0 时刷新运行保存时间戳。
 // 返 回 值：保存状态。
-// 注意事项：公共保存接口的共同入口，统一处理 seq、CRC、A/B 页切换和写后校验。
+// 注意事项：公共保存接口的共同入口，统一处理 seq、CRC、页内追加/切页滚转和写后校验。
 static ParamStore_Status_t ParamStore_SaveInternal(const ParamStore_Record_t *record,
                                                    uint32_t now_ms,
                                                    uint8_t update_runtime_time)
@@ -279,6 +435,8 @@ static ParamStore_Status_t ParamStore_SaveInternal(const ParamStore_Record_t *re
 	ParamStore_Record_t verify;
 	ParamStore_Status_t status;
 	uint32_t target_page;
+	uint16_t target_slot;
+	uint8_t erase_page;
 
 	if (record == 0)
 	{
@@ -300,14 +458,28 @@ static ParamStore_Status_t ParamStore_SaveInternal(const ParamStore_Record_t *re
 		return status;
 	}
 
-	target_page = ParamStore_GetTargetPage();
-	status = ParamStore_ProgramRecord(target_page, &candidate);
+	status = ParamStore_GetTargetLocation(&target_page, &target_slot, &erase_page);
 	if (status != PARAM_STORE_STATUS_OK)
 	{
 		return status;
 	}
 
-	status = ParamStore_ReadPage(target_page, &verify);
+	if (erase_page != 0U)
+	{
+		status = ParamStore_ErasePage(target_page);
+		if (status != PARAM_STORE_STATUS_OK)
+		{
+			return status;
+		}
+	}
+
+	status = ParamStore_ProgramSlot(target_page, target_slot, &candidate);
+	if (status != PARAM_STORE_STATUS_OK)
+	{
+		return status;
+	}
+
+	status = ParamStore_ReadSlot(target_page, target_slot, &verify);
 	if (status != PARAM_STORE_STATUS_OK)
 	{
 		return PARAM_STORE_STATUS_ERROR_FLASH;
@@ -332,8 +504,10 @@ ParamStore_Status_t ParamStore_Init(uint32_t now_ms)
 {
 	ParamStore_Status_t status;
 	uint32_t page_addr;
+	uint16_t slot_index;
 
 	page_addr = 0UL;
+	slot_index = PARAM_STORE_INVALID_SLOT_INDEX;
 	if (ParamStore_IsFlashLayoutValid() == 0U)
 	{
 		ParamStore_LoadDefaults(&s_cached_record);
@@ -344,7 +518,7 @@ ParamStore_Status_t ParamStore_Init(uint32_t now_ms)
 		return PARAM_STORE_STATUS_ERROR_PARAM;
 	}
 
-	status = ParamStore_ReadLatest(&s_cached_record, &page_addr);
+	status = ParamStore_ReadLatest(&s_cached_record, &page_addr, &slot_index);
 	if (status == PARAM_STORE_STATUS_OK)
 	{
 		s_active_page_addr = page_addr;
@@ -419,7 +593,7 @@ void ParamStore_LoadDefaults(ParamStore_Record_t *record)
 // 函    数：ParamStore_SaveParameters
 // 参    数：record 待保存的配置/状态记录。
 // 返 回 值：保存状态。
-// 注意事项：参数修改确认后立即保存，不受 10min 运行状态节流限制。
+// 注意事项：参数修改确认后立即保存，不受 1h 运行状态节流限制。
 ParamStore_Status_t ParamStore_SaveParameters(const ParamStore_Record_t *record)
 {
 	return ParamStore_SaveInternal(record, s_last_runtime_save_ms, 0U);
@@ -428,7 +602,7 @@ ParamStore_Status_t ParamStore_SaveParameters(const ParamStore_Record_t *record)
 // 函    数：ParamStore_SaveRuntime
 // 参    数：record 待保存运行状态；now_ms 当前系统毫秒时间戳。
 // 返 回 值：保存状态。
-// 注意事项：运行状态最多每 10min 保存一次，避免每次打盹都擦写 Flash。
+// 注意事项：普通运行状态最多每 1h 保存一次，避免每次打盹都擦写 Flash。
 ParamStore_Status_t ParamStore_SaveRuntime(const ParamStore_Record_t *record, uint32_t now_ms)
 {
 	if (ParamStore_ShouldSaveRuntime(now_ms) == 0U)
@@ -450,7 +624,7 @@ ParamStore_Status_t ParamStore_ForceSaveRuntime(const ParamStore_Record_t *recor
 
 // 函    数：ParamStore_ShouldSaveRuntime
 // 参    数：now_ms 当前系统毫秒时间戳。
-// 返 回 值：达到 10min 保存间隔返回 1，否则返回 0。
+// 返 回 值：达到 1h 保存间隔返回 1，否则返回 0。
 uint8_t ParamStore_ShouldSaveRuntime(uint32_t now_ms)
 {
 	if (s_initialized == 0U)

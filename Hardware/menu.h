@@ -3,6 +3,7 @@
 
 #include "stm32f10x.h"
 #include "ui_pages.h"
+#include "param_store.h"
 
 // 模    块：OLED 菜单与按键交互
 // 职    责：消费 key_scan 事件，驱动 ui_pages 显示，处理参数编辑和维护页面交互。
@@ -53,8 +54,10 @@ typedef struct
 	uint8_t home_zero;
 	// 1 表示维护模式下请求切换 MF 电机释放/保持。
 	uint8_t motor_release_toggle;
-	// 1 表示参数页已经成功保存，app_state 需要重新加载参数并刷新打盹调度。
-	uint8_t params_saved;
+	// 1 表示参数页请求保存；app_state 必须合并当前运行态后单次写入 Flash。
+	uint8_t params_save_request;
+	// 参数页编辑后的快照；仅参数字段有效，运行态/位置/水深字段由 app_state 当前状态提供。
+	ParamStore_Record_t params_record;
 	// 1 表示手动页面中 PB11 保持按下，app_state 可发上升有限脉冲小段。
 	uint8_t manual_up_hold;
 	// 1 表示手动页面中 PB1 保持按下，app_state 可发下降有限脉冲小段。
@@ -84,6 +87,12 @@ void Menu_GetIntents(Menu_Intents_t *intents);
 // 返 回 值：无
 // 注意事项：app_state 修改参数后调用，刷新参数页显示缓存。
 void Menu_ReloadParams(void);
+
+// 函    数：Menu_OnParamSaveResult
+// 参    数：success 非 0 表示 app_state 已完成参数单次落盘；now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：仅更新菜单缓存、错误提示和短鸣，不直接写 Flash。
+void Menu_OnParamSaveResult(uint8_t success, uint32_t now_ms);
 
 // 函    数：Menu_Update
 // 参    数：now_ms 当前系统毫秒时间戳；key_events KeyScan_GetEvents() 读取并清除后的事件位图。

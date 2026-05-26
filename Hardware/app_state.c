@@ -216,6 +216,44 @@ static void AppState_SyncRecordRuntime(void)
 	NapScheduler_SyncRuntime(&s_record);
 }
 
+// 参数页请求保存时，把编辑参数与当前运行态合并后单次落盘，避免菜单旧缓存覆盖位置/水深/运行秒数。
+static void AppState_SaveEditedParameters(const ParamStore_Record_t *edited, uint32_t now_ms)
+{
+	ParamStore_Record_t candidate;
+
+	if (edited == 0)
+	{
+		ErrorManager_Set(ERROR_CODE_W_PARAM_REJECTED);
+		Menu_OnParamSaveResult(0U, now_ms);
+		return;
+	}
+
+	AppState_SyncRecordRuntime();
+	candidate = s_record;
+	candidate.initial_target_mm_x10 = edited->initial_target_mm_x10;
+	candidate.final_target_mm_x10 = edited->final_target_mm_x10;
+	candidate.daily_shallow_mm_x10 = edited->daily_shallow_mm_x10;
+	candidate.nap_pulses = edited->nap_pulses;
+
+	if (ParamStore_SaveParameters(&candidate) != PARAM_STORE_STATUS_OK)
+	{
+		ErrorManager_Set(ERROR_CODE_W_PARAM_REJECTED);
+		Menu_OnParamSaveResult(0U, now_ms);
+		return;
+	}
+	if (ParamStore_Load(&s_record) != PARAM_STORE_STATUS_OK)
+	{
+		ErrorManager_Set(ERROR_CODE_W_PARAM_REJECTED);
+		Menu_OnParamSaveResult(0U, now_ms);
+		return;
+	}
+
+	NapScheduler_UpdateConfig(&s_record, now_ms);
+	AutoControl_Reset(now_ms);
+	ErrorManager_Clear(ERROR_CODE_W_PARAM_REJECTED);
+	Menu_OnParamSaveResult(1U, now_ms);
+}
+
 // 按指定恢复状态强制保存运行记录；仅用于关键状态切换或保守恢复标记。
 static void AppState_SaveStateAs(ParamStore_AppState_t stored_state, uint32_t now_ms)
 {
@@ -248,7 +286,7 @@ static void AppState_SaveCriticalState(uint32_t now_ms)
 	AppState_SaveState(now_ms);
 }
 
-// 按 10min 节流保存普通运行状态，运动中和 CHECK WATER 标记期间禁止覆盖恢复语义。
+// 按 1h 节流保存普通运行状态，运动中和 CHECK WATER 标记期间禁止覆盖恢复语义。
 static void AppState_SaveRuntimeIfDue(uint32_t now_ms)
 {
 	if ((s_state == APP_STATE_NAP_MOVE) || (StepperUM244_IsBusy() != 0U))
@@ -257,7 +295,7 @@ static void AppState_SaveRuntimeIfDue(uint32_t now_ms)
 	}
 	if (s_check_water_notice != 0U)
 	{
-		// CHECK WATER 期间保留 NAP_MOVE/DROP 标记，避免 10min 运行保存覆盖保守恢复语义。
+		// CHECK WATER 期间保留 NAP_MOVE/DROP 标记，避免 1h 运行保存覆盖保守恢复语义。
 		return;
 	}
 
@@ -924,7 +962,7 @@ static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intent
 // 函    数：AppState_ServiceHomingPersistence
 // 参    数：now_ms 当前系统毫秒时间戳。
 // 返 回 值：无
-// 注意事项：回零完成会把位置置为可信 0 pulse，必须立即写入 Flash，不能等 10min 运行保存。
+// 注意事项：回零完成会把位置置为可信 0 pulse，必须立即写入 Flash，不能等 1h 运行保存。
 static void AppState_ServiceHomingPersistence(uint32_t now_ms)
 {
 	Homing_State_t homing_state;
@@ -1013,11 +1051,9 @@ static void AppState_HandleMenuIntents(uint32_t now_ms, const Menu_Intents_t *in
 	{
 		return;
 	}
-	if (intents->params_saved != 0U)
+	if (intents->params_save_request != 0U)
 	{
-		AppState_LoadRecord();
-		NapScheduler_UpdateConfig(&s_record, now_ms);
-		AutoControl_Reset(now_ms);
+		AppState_SaveEditedParameters(&intents->params_record, now_ms);
 	}
 	if (intents->alarm_ack != 0U)
 	{

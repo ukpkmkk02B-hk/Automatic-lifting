@@ -6,7 +6,7 @@
 // 模    块：Flash 参数与恢复状态保存
 // 存储位置：STM32F103C8T6 末尾两个 1KB Flash 页，A=0x0800F800，B=0x0800FC00。
 // 安全假设：调用保存接口前，上层应确保电机不在输出 STEP；Flash 擦写是阻塞操作。
-// 写入策略：参数修改立即保存，运行状态使用 10min 节流，关键状态切换使用强制保存。
+// 写入策略：参数修改立即保存，运行状态使用 1h 节流，关键状态切换使用强制保存。
 
 typedef enum
 {
@@ -22,7 +22,7 @@ typedef enum
 	PARAM_STORE_STATUS_ERROR_RANGE,
 	// Flash 擦除、编程或写后校验失败。
 	PARAM_STORE_STATUS_ERROR_FLASH,
-	// 运行状态保存被 10min 节流拒绝。
+	// 运行状态保存被 1h 节流拒绝。
 	PARAM_STORE_STATUS_THROTTLED,
 	// 已使用默认参数，通常同时置位 W_PARAM_DEFAULT。
 	PARAM_STORE_STATUS_DEFAULT_USED
@@ -124,7 +124,7 @@ ParamStore_Status_t ParamStore_SaveParameters(const ParamStore_Record_t *record)
 
 // 函    数：ParamStore_SaveRuntime
 // 参    数：record 待保存运行状态；now_ms 当前系统毫秒时间戳。
-// 返 回 值：保存状态，未达到 10min 间隔返回 PARAM_STORE_STATUS_THROTTLED。
+// 返 回 值：保存状态，未达到 1h 间隔返回 PARAM_STORE_STATUS_THROTTLED。
 // 注意事项：禁止每次打盹脉冲后调用本函数造成频繁擦写。
 ParamStore_Status_t ParamStore_SaveRuntime(const ParamStore_Record_t *record, uint32_t now_ms);
 
@@ -136,7 +136,7 @@ ParamStore_Status_t ParamStore_ForceSaveRuntime(const ParamStore_Record_t *recor
 
 // 函    数：ParamStore_ShouldSaveRuntime
 // 参    数：now_ms 当前系统毫秒时间戳。
-// 返 回 值：1 表示距离上次运行状态保存已达到 10min，0 表示仍需节流。
+// 返 回 值：1 表示距离上次运行状态保存已达到 1h，0 表示仍需节流。
 uint8_t ParamStore_ShouldSaveRuntime(uint32_t now_ms);
 
 // 函    数：ParamStore_ValidateRecord

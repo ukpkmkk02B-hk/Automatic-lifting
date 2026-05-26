@@ -150,8 +150,9 @@ Main control logic must live in the state machine, not inside interrupts or disp
 - Page B: `0x0800FC00`.
 - Keil IROM should reserve only `0x08000000` size `0x0000F800` for code.
 - Use `magic/version/seq/crc16`.
-- Save parameter changes immediately.
-- Save runtime state at most every 10 minutes, plus important transitions.
+- Save parameter changes immediately through the main state machine, merged with the current runtime state in one Flash write.
+- Save runtime state at most every 1 hour, plus important transitions.
+- Use the two reserved pages as an A/B circular log of full v1 records; scan all fixed slots and select the newest valid `seq`.
 - Do not write Flash after every nap pulse group.
 - Do not change the Flash record layout for the conservative v1 recovery policy; `BOARD_PARAM_VERSION` remains `1`. Reuse `PARAM_STORE_APP_NAP_MOVE` as a conservative finite-move/DROP recovery marker.
 

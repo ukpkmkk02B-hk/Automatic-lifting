@@ -86,7 +86,7 @@ static void Menu_ClearIntents(Menu_Intents_t *intents)
 	intents->air_calibrate = 0U;
 	intents->home_zero = 0U;
 	intents->motor_release_toggle = 0U;
-	intents->params_saved = 0U;
+	intents->params_save_request = 0U;
 	intents->manual_up_hold = 0U;
 	intents->manual_down_hold = 0U;
 }
@@ -300,33 +300,18 @@ static void Menu_AdjustParam(int8_t delta)
 	s_param_dirty = 1U;
 }
 
-// 保存当前参数页编辑结果；失败只置位参数告警，不改变已有有效 Flash 记录。
+// 提交当前参数页编辑结果；真正 Flash 写入由 app_state 合并当前运行态后完成。
 static void Menu_SaveParam(uint32_t now_ms)
 {
-	ParamStore_Status_t status;
-
 	if ((s_page != MENU_PAGE_PARAM) || (s_param_id == UI_PAGES_PARAM_MANUAL_SPEED))
 	{
 		return;
 	}
 
-	// 菜单调整参数后，s_param_record 的 crc16 仍是旧记录的校验值；
-	// 保存接口会在写 Flash 前统一刷新 seq/crc16，并再次执行范围校验。
-	status = ParamStore_SaveParameters(&s_param_record);
-
-	if (status == PARAM_STORE_STATUS_OK)
-	{
-		s_param_dirty = 0U;
-		ErrorManager_Clear(ERROR_CODE_W_PARAM_REJECTED);
-		Menu_LoadParams();
-		s_pending_intents.params_saved = 1U;
-	}
-	else
-	{
-		s_param_error = 1U;
-		ErrorManager_Set(ERROR_CODE_W_PARAM_REJECTED);
-		Menu_StartShortBeep(now_ms);
-	}
+	(void)now_ms;
+	// 菜单只传递编辑后的参数快照；运行秒数、位置、水深和恢复状态由 app_state 当前状态提供。
+	s_pending_intents.params_record = s_param_record;
+	s_pending_intents.params_save_request = 1U;
 }
 
 // 处理参数页长按连续调整；重复周期由 BOARD_UI_PARAM_REPEAT_MS 限制。
@@ -992,6 +977,28 @@ void Menu_GetIntents(Menu_Intents_t *intents)
 void Menu_ReloadParams(void)
 {
 	Menu_LoadParams();
+}
+
+// 函    数：Menu_OnParamSaveResult
+// 参    数：success 非 0 表示参数已由 app_state 合并当前运行态后写入 Flash；now_ms 当前系统毫秒时间戳。
+// 返 回 值：无
+// 注意事项：菜单只处理显示缓存和提示，禁止在此处再次写 Flash。
+void Menu_OnParamSaveResult(uint8_t success, uint32_t now_ms)
+{
+	Menu_LoadParams();
+	s_param_dirty = 0U;
+	if (success != 0U)
+	{
+		s_param_error = 0U;
+		ErrorManager_Clear(ERROR_CODE_W_PARAM_REJECTED);
+	}
+	else
+	{
+		s_param_error = 1U;
+		ErrorManager_Set(ERROR_CODE_W_PARAM_REJECTED);
+		Menu_StartShortBeep(now_ms);
+	}
+	Menu_RequestRenderNow(now_ms);
 }
 
 // 函    数：Menu_Update

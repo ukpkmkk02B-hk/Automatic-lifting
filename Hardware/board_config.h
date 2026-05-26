@@ -214,7 +214,7 @@
 #define BOARD_DROP_MAX_DISTANCE_PULSES   24000U
 #define BOARD_DROP_STABLE_WAIT_MS        15000UL
 
-// Flash 参数区：STM32F103C8T6 标称 64KB Flash，末尾两个 1KB 页用于 A/B 备份。
+// Flash 参数区：STM32F103C8T6 标称 64KB Flash，末尾两个 1KB 页用于 A/B 循环日志。
 // 注意事项：Keil IROM 必须限制为 0x08000000 + 0x0000F800，避免代码覆盖参数页。
 #define BOARD_FLASH_BASE_ADDR            0x08000000UL
 #define BOARD_FLASH_TOTAL_SIZE_BYTES     0x00010000UL
@@ -225,9 +225,9 @@
 #define BOARD_IROM_RESERVED_SIZE_BYTES   0x0000F800UL
 #define BOARD_IROM_END_ADDR              (BOARD_FLASH_BASE_ADDR + BOARD_IROM_RESERVED_SIZE_BYTES)
 
-// Flash 保存节流：运行状态最多每 10min 写入一次；关键状态切换使用强制保存接口。
+// Flash 保存节流：普通运行状态最多每 1h 写入一次；关键状态切换使用强制保存接口。
 // 单位为 ms，禁止把每次 1 pulse 或 8 pulse 打盹动作直接绑定到 Flash 擦写。
-#define BOARD_PARAM_RUNTIME_SAVE_MS      600000UL
+#define BOARD_PARAM_RUNTIME_SAVE_MS      3600000UL
 
 // 持久化默认参数，水深单位为 mm_x10，脉冲单位为 pulse。
 // 目标范围 5..100mm；默认从 100mm 逐日变浅到 10mm，每日 1mm。
