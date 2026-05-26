@@ -1,0 +1,7 @@
+interface:
+  display_name: "Embedded Driver Hardening"
+  short_description: "Harden buses, sensors, and drivers"
+  default_prompt: "Use $embedded-driver-hardening to design a bounded embedded driver with explicit errors and units."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Nonblocking Safety Control"
+  short_description: "Design safe nonblocking control"
+  default_prompt: "Use $embedded-nonblocking-safety-control to review an embedded state machine for nonblocking safety behavior."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Staged Firmware Workflow"
+  short_description: "Run phase-gated firmware work"
+  default_prompt: "Use $embedded-staged-firmware-workflow to handle a read-first, confirmation-gated embedded firmware implementation."
+
+policy:
+  allow_implicit_invocation: true

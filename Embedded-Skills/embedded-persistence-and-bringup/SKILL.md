@@ -1,6 +1,6 @@
 ---
 name: embedded-persistence-and-bringup
-description: Use when adding Flash or EEPROM persistence, power-loss recovery, build verification, or hardware bring-up procedures for embedded firmware that controls real devices.
+description: Use when adding Flash or EEPROM persistence, A/B records, 断电恢复, build verification, 构建验证, or hardware bring-up procedures for embedded firmware that controls real devices.
 ---
 
 # Embedded Persistence And Bring-Up
@@ -11,7 +11,7 @@ Persistence and bring-up are safety features. Store enough state to recover deli
 
 ## 中文简述
 
-用于参数持久化、断电恢复和硬件上电调试：控制 Flash 写入频率，先构建验证，再按低风险顺序带硬件。
+用于参数持久化、断电恢复和硬件上电调试：控制 Flash/EEPROM 写入频率，先构建验证，再按低风险顺序带硬件。
 
 ## Flash A/B Record Pattern
 
@@ -26,9 +26,9 @@ Use two reserved pages or sectors when the MCU allows it:
 
 ## Write Policy
 
-Save configuration immediately after explicit user confirmation. Save runtime state through throttling, for example every 10 minutes, plus forced saves before important transitions such as pause, fault, maintenance, motor release, or completed checkpoint events.
+Save configuration immediately after explicit user confirmation. Save runtime state through the project-defined throttle interval plus forced saves before important transitions such as pause, fault, maintenance, motor release, or completed checkpoint events.
 
-Document blocking behavior: Flash erase/program often blocks interrupts or stalls foreground code. Avoid starting Flash writes while motors or safety-critical timing are active unless the platform proves it safe.
+Document blocking behavior: Flash erase/program often stalls foreground code and may affect interrupt timing. Avoid starting Flash writes while motors or safety-critical timing are active unless the platform proves it safe.
 
 ## Power Recovery Rules
 
@@ -60,4 +60,4 @@ Document blocking behavior: Flash erase/program often blocks interrupts or stall
 
 - A user asks to save recovery state after every tiny movement.
 - The build cannot run locally because Keil is missing.
-- A reboot occurs after the previous state was automatic, but position or sensor evidence is stale.
+- A reboot occurs after an automatic state, but position or sensor evidence is stale.
