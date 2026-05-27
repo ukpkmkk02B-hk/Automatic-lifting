@@ -25,15 +25,15 @@ If the user says not to write code, asks for a read-first summary, or requires c
 
 ## Grounding Checklist
 
-| Area | Confirm |
-| --- | --- |
-| Toolchain | Keil5, GCC, IAR, CMake, PlatformIO, vendor SDK, compiler dialect |
-| MCU/library | Exact chip, SPL/HAL/LL/bare-metal choice, startup and system files |
-| Pin map | Pins, alternate functions, active levels, reserved debug pins |
-| Electrical | Voltage domains, isolation, pull-ups, common ground, signal inversion |
-| Devices | Datasheet commands, bus address format, timing, unit conversion |
-| Safety | Stop paths, fault latch, manual override limits, safe defaults |
-| Verification | Build command, generated artifacts, bench bring-up sequence |
+| Area         | Confirm                                                               |
+| ------------ | --------------------------------------------------------------------- |
+| Toolchain    | Keil5, GCC, IAR, CMake, PlatformIO, vendor SDK, compiler dialect      |
+| MCU/library  | Exact chip, SPL/HAL/LL/bare-metal choice, startup and system files    |
+| Pin map      | Pins, alternate functions, active levels, reserved debug pins         |
+| Electrical   | Voltage domains, isolation, pull-ups, common ground, signal inversion |
+| Devices      | Datasheet commands, bus address format, timing, unit conversion       |
+| Safety       | Stop paths, fault latch, manual override limits, safe defaults        |
+| Verification | Build command, generated artifacts, bench bring-up sequence           |
 
 ## Output Pattern
 

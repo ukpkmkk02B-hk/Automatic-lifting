@@ -11,10 +11,10 @@ Safety behavior must not depend on slow UI, blocking drivers, or optimistic stat
 
 ## Three-Layer Pattern
 
-| Layer | Owns | Must Not Do |
-| --- | --- | --- |
-| Safety bottom layer | Raw emergency GPIO reads, timer stop, fault flag set | Wait for display, bus I/O, Flash, menus |
-| Driver/service layer | GPIO, debounced inputs, bounded I/O, finite motor commands | Hide errors, wait forever, decide product policy |
+| Layer                     | Owns                                                        | Must Not Do                                                    |
+| ------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------- |
+| Safety bottom layer       | Raw emergency GPIO reads, timer stop, fault flag set        | Wait for display, bus I/O, Flash, menus                        |
+| Driver/service layer      | GPIO, debounced inputs, bounded I/O, finite motor commands  | Hide errors, wait forever, decide product policy               |
 | Application state machine | Self-test, pause, auto, manual, maintenance, fault recovery | Bypass driver safety checks or direct-register around services |
 
 ## Nonblocking Rules

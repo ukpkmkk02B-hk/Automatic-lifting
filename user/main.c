@@ -37,19 +37,22 @@ static void App_TimebaseInit(void)
 static void App_UpdateLeds(uint32_t now_ms)
 {
 	static uint32_t last_led1_ms;
-	static uint32_t last_led2_ms;
 
-	if ((uint32_t)(now_ms - last_led1_ms) >= 500U)
+	if ((uint32_t)(now_ms - last_led1_ms) >= 5000U)
 	{
-		// LED1 当前 500ms 翻转一次，用作主循环仍在运行的状态提示。
+		// LED1 当前每 5000ms 翻转一次，用作主循环仍在运行的低频心跳提示。
 		last_led1_ms = now_ms;
 		LED1_Turn();
 	}
 
-	if ((uint32_t)(now_ms - last_led2_ms) >= 1000U)
+	// LED2 作为错误/警告锁存指示：任意异常存在时常亮，无异常时熄灭。
+	if (ErrorManager_GetPrimary() != ERROR_CODE_E_NONE)
 	{
-		last_led2_ms = now_ms;
-		LED2_Turn();
+		LED2_ON();
+	}
+	else
+	{
+		LED2_OFF();
 	}
 }
 
