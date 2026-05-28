@@ -427,12 +427,11 @@ static uint8_t AppState_BlockFaultClearIf(uint8_t condition, ErrorCode_t code)
 // 函    数：AppState_CanClearLatchedFaults
 // 参    数：无
 // 返 回 值：1 表示可受控清除严重故障，0 表示根因仍存在。
-// 注意事项：静音不等于清故障；限位/I2C/传感器/水深/位置/电机释放都会阻止 ClearAll。
+// 注意事项：静音不等于清故障；限位/I2C/传感器/水位范围/电机释放都会阻止 ClearAll，位置不可信和目标误差只阻止自动运行。
 static uint8_t AppState_CanClearLatchedFaults(void)
 {
 	WaterDepth_State_t depth;
 	uint8_t blocked;
-	int32_t target_error_mm_x10;
 
 	blocked = 0U;
 
@@ -459,12 +458,6 @@ static uint8_t AppState_CanClearLatchedFaults(void)
 	{
 		blocked = 1U;
 	}
-	if (AppState_BlockFaultClearIf((PositionTracker_CanAutoRun() == 0U) ? 1U : 0U,
-	                               ERROR_CODE_E_POSITION_UNTRUSTED) != 0U)
-	{
-		blocked = 1U;
-	}
-
 	if (AppState_BlockFaultClearIf((WF5805F_GetFailureCount(WF5805F_SENSOR_AIR) >= BOARD_SENSOR_FAILURE_LIMIT) ? 1U : 0U,
 	                               ERROR_CODE_E_SENSOR_AIR_FAIL) != 0U)
 	{
@@ -526,13 +519,6 @@ static uint8_t AppState_CanClearLatchedFaults(void)
 		if (AppState_BlockFaultClearIf(((depth.basket_depth_mm_x10 < BOARD_PRESSURE_PHYSICAL_MIN_MM_X10) ||
 		                                (depth.tank_depth_mm_x10 < BOARD_PRESSURE_PHYSICAL_MIN_MM_X10)) ? 1U : 0U,
 		                               ERROR_CODE_E_PRESSURE_PHYSICAL) != 0U)
-		{
-			blocked = 1U;
-		}
-
-		target_error_mm_x10 = depth.basket_depth_mm_x10 - NapScheduler_GetTargetDepthMmX10();
-		if (AppState_BlockFaultClearIf((AppState_Abs32(target_error_mm_x10) > BOARD_DEPTH_TRACK_HARD_ERROR_MM_X10) ? 1U : 0U,
-		                               ERROR_CODE_E_DEPTH_TRACKING) != 0U)
 		{
 			blocked = 1U;
 		}
@@ -870,7 +856,9 @@ static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intent
 	}
 	if (intents->exit_maintenance != 0U)
 	{
+		// 退出维护时统一回到电机保持状态；只清除“电机释放”锁存，不清除其他真实故障。
 		StepperUM244_SetMotorRelease(0U);
+		ErrorManager_Clear(ERROR_CODE_E_MOTOR_RELEASED);
 		AppState_Enter(APP_STATE_PAUSED, now_ms);
 	}
 	if ((s_state != APP_STATE_MAINTENANCE) &&
@@ -936,7 +924,7 @@ static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intent
 		}
 		else if (homing_status != HOMING_STATUS_BUSY)
 		{
-			// 回零启动失败也可能已把位置标为不可信，需立即落盘，避免断电后恢复旧的可信位置。
+			// 回零启动预检失败只保存当前故障状态；预检失败不额外破坏已有位置可信状态。
 			s_homing_save_pending = 0U;
 			AppState_SaveState(now_ms);
 		}
@@ -984,7 +972,7 @@ static void AppState_ServiceHomingPersistence(uint32_t now_ms)
 	    (homing_state == HOMING_STATE_FAULT) ||
 	    (homing_state == HOMING_STATE_CANCELLED))
 	{
-		// 失败或取消时已保持位置不可信，不再等待“完成保存”。
+		// 失败或取消后不再等待“完成保存”；位置可信状态由 homing 内部按实际进入流程与否决定。
 		s_homing_save_pending = 0U;
 	}
 }
@@ -1022,7 +1010,7 @@ static void AppState_HandleAlarmAck(uint32_t now_ms)
 
 	if (AppState_CanClearLatchedFaults() == 0U)
 	{
-		// 第二次确认时若限位、传感器/I2C、水位、位置或电机释放仍异常，只保持静音和故障态。
+		// 第二次确认时若限位、传感器/I2C、水位或电机释放仍异常，只保持静音和故障态。
 		ErrorManager_SetBuzzerMuted(1U);
 		AppState_SaveState(now_ms);
 		AppState_Enter(APP_STATE_FAULT, now_ms);

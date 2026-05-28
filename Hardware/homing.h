@@ -61,7 +61,7 @@ void Homing_Init(void);
 // 函    数：Homing_Start
 // 参    数：now_ms 系统毫秒时间戳。
 // 返 回 值：回零启动状态。
-// 注意事项：启动维护回零流程；开始后位置立即标记为不可信，直到二次触发下限位完成。
+// 注意事项：先执行包含电机保持状态的安全预检；预检通过并进入回零流程后位置才标记为不可信。
 Homing_Status_t Homing_Start(uint32_t now_ms);
 
 // 函    数：Homing_Update

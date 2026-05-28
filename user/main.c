@@ -36,13 +36,24 @@ static void App_TimebaseInit(void)
 // 注意事项：LED 闪烁使用时间戳差值，避免 Delay 阻塞主循环。
 static void App_UpdateLeds(uint32_t now_ms)
 {
-	static uint32_t last_led1_ms;
+	static uint32_t last_led1_blink_ms;
+	static uint8_t led1_pulse_active;
 
-	if ((uint32_t)(now_ms - last_led1_ms) >= 5000U)
+	if (led1_pulse_active != 0U)
 	{
-		// LED1 当前每 5000ms 翻转一次，用作主循环仍在运行的低频心跳提示。
-		last_led1_ms = now_ms;
-		LED1_Turn();
+		if ((uint32_t)(now_ms - last_led1_blink_ms) >= 200U)
+		{
+			// LED1 每次短亮 200ms 后熄灭，避免旧的 5s 翻转方波长期点亮。
+			LED1_OFF();
+			led1_pulse_active = 0U;
+		}
+	}
+	else if ((uint32_t)(now_ms - last_led1_blink_ms) >= 5000U)
+	{
+		// LED1 每 5000ms 启动一次 200ms 短闪，用作主循环仍在运行的低频心跳提示。
+		last_led1_blink_ms = now_ms;
+		LED1_ON();
+		led1_pulse_active = 1U;
 	}
 
 	// LED2 作为错误/警告锁存指示：任意异常存在时常亮，无异常时熄灭。

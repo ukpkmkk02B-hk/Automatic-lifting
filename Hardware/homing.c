@@ -51,7 +51,7 @@ static uint8_t Homing_IsBlockingFaultActive(void)
 // 函    数：Homing_Fail
 // 参    数：status 回零失败状态；code 需要锁存的错误码，E_NONE 表示不额外置位。
 // 返 回 值：无
-// 注意事项：任何回零失败都先停止 STEP，再锁存错误并把位置标记为不可信。
+// 注意事项：进入回零流程后的任何失败都先停止 STEP，再锁存错误并把位置标记为不可信。
 static void Homing_Fail(Homing_Status_t status, ErrorCode_t code)
 {
 	StepperUM244_Stop();
@@ -64,30 +64,80 @@ static void Homing_Fail(Homing_Status_t status, ErrorCode_t code)
 	s_state = HOMING_STATE_FAULT;
 }
 
-// 函    数：Homing_CheckSafety
-// 参    数：无
-// 返 回 值：安全条件满足返回 1；发现故障并进入 FAULT 返回 0。
-// 注意事项：回零中不能绕过左右限位不一致、上限位和阻塞类严重故障。
-static uint8_t Homing_CheckSafety(void)
+// 函    数：Homing_BlockStart
+// 参    数：status 启动被拒绝状态；code 需要锁存的错误码，E_NONE 表示不额外置位。
+// 返 回 值：无
+// 注意事项：启动预检失败尚未进入回零流程，不能把已有可信位置改为不可信。
+static void Homing_BlockStart(Homing_Status_t status, ErrorCode_t code)
 {
+	StepperUM244_Stop();
+	if (code != ERROR_CODE_E_NONE)
+	{
+		ErrorManager_Set(code);
+	}
+	s_last_status = status;
+	s_state = HOMING_STATE_FAULT;
+}
+
+// 函    数：Homing_CheckSafety
+// 参    数：mark_position_untrusted 非 0 表示已经进入回零流程，安全失败时位置需标记为不可信。
+// 返 回 值：安全条件满足返回 1；发现故障并进入 FAULT 返回 0。
+// 注意事项：启动预检失败只拒绝本次启动；电机释放、限位或阻塞故障都不能绕过。
+static uint8_t Homing_CheckSafety(uint8_t mark_position_untrusted)
+{
+	if (StepperUM244_IsMotorReleased() != 0U)
+	{
+		// MF 释放时不能回零；预检阶段只拒绝启动，不主动改回保持状态。
+		if (mark_position_untrusted != 0U)
+		{
+			Homing_Fail(HOMING_STATUS_ERROR_FAULT, ERROR_CODE_E_MOTOR_RELEASED);
+		}
+		else
+		{
+			Homing_BlockStart(HOMING_STATUS_ERROR_FAULT, ERROR_CODE_E_MOTOR_RELEASED);
+		}
+		return 0U;
+	}
+
 	if (Limit_IsSameDirectionMismatch() != 0U)
 	{
 		// 左右限位不一致时，不能用单侧限位建立机械零点。
-		Homing_Fail(HOMING_STATUS_ERROR_LIMIT, ERROR_CODE_E_LIMIT_MISMATCH);
-		PositionTracker_MarkUntrusted(POSITION_TRACKER_UNTRUSTED_LIMIT_MISMATCH);
+		if (mark_position_untrusted != 0U)
+		{
+			Homing_Fail(HOMING_STATUS_ERROR_LIMIT, ERROR_CODE_E_LIMIT_MISMATCH);
+			PositionTracker_MarkUntrusted(POSITION_TRACKER_UNTRUSTED_LIMIT_MISMATCH);
+		}
+		else
+		{
+			Homing_BlockStart(HOMING_STATUS_ERROR_LIMIT, ERROR_CODE_E_LIMIT_MISMATCH);
+		}
 		return 0U;
 	}
 
 	if (Limit_IsAnyUpperActive() != 0U)
 	{
 		// 回零流程不应从上限位触发状态继续，避免向上退限位时撞限。
-		Homing_Fail(HOMING_STATUS_ERROR_LIMIT, ERROR_CODE_E_UPPER_LIMIT);
+		if (mark_position_untrusted != 0U)
+		{
+			Homing_Fail(HOMING_STATUS_ERROR_LIMIT, ERROR_CODE_E_UPPER_LIMIT);
+		}
+		else
+		{
+			Homing_BlockStart(HOMING_STATUS_ERROR_LIMIT, ERROR_CODE_E_UPPER_LIMIT);
+		}
 		return 0U;
 	}
 
 	if (Homing_IsBlockingFaultActive() != 0U)
 	{
-		Homing_Fail(HOMING_STATUS_ERROR_FAULT, ERROR_CODE_E_NONE);
+		if (mark_position_untrusted != 0U)
+		{
+			Homing_Fail(HOMING_STATUS_ERROR_FAULT, ERROR_CODE_E_NONE);
+		}
+		else
+		{
+			Homing_BlockStart(HOMING_STATUS_ERROR_FAULT, ERROR_CODE_E_NONE);
+		}
 		return 0U;
 	}
 
@@ -221,7 +271,7 @@ void Homing_Init(void)
 // 函    数：Homing_Start
 // 参    数：now_ms 系统毫秒时间戳。
 // 返 回 值：回零启动状态。
-// 注意事项：启动后直到二次触发下限位完成前，位置都不可信。
+// 注意事项：安全预检包含电机保持状态；进入回零流程后直到二次触发下限位完成前位置都不可信。
 Homing_Status_t Homing_Start(uint32_t now_ms)
 {
 	if ((s_state != HOMING_STATE_IDLE) &&
@@ -232,19 +282,18 @@ Homing_Status_t Homing_Start(uint32_t now_ms)
 		return HOMING_STATUS_BUSY;
 	}
 
-	StepperUM244_SetMotorRelease(0U);
-	// 回零开始后直到二次触发下限位完成前，位置都不可信。
+	if (Homing_CheckSafety(0U) == 0U)
+	{
+		return s_last_status;
+	}
+
+	// 安全预检通过后才进入回零流程；直到二次触发下限位完成前，位置都不可信。
 	PositionTracker_MarkUntrusted(POSITION_TRACKER_UNTRUSTED_HOMING_STARTED);
 
 	s_phase_search_pulses = 0U;
 	s_total_search_pulses = 0U;
 	s_release_deadline_ms = now_ms;
 	s_last_status = HOMING_STATUS_BUSY;
-
-	if (Homing_CheckSafety() == 0U)
-	{
-		return s_last_status;
-	}
 
 	if (Limit_IsAnyLowerActive() != 0U)
 	{
@@ -275,7 +324,7 @@ void Homing_Update(uint32_t now_ms)
 		return;
 	}
 
-	if (Homing_CheckSafety() == 0U)
+	if (Homing_CheckSafety(1U) == 0U)
 	{
 		return;
 	}
