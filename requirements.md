@@ -84,7 +84,7 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - Stop automatic motion on tank low/high water, basket low/high water, water jump, pressure physical anomaly, or stall detection.
 - Stop automatic motion and raise `E_DEPTH_TRACKING` when target tracking hard error exceeds `±5mm`, low-frequency correction repeatedly fails to return inside the start deadband, restart depth difference exceeds `3mm`, or automatic/recovery depth freshness waits time out.
 - Automatic control arbitration priority is: hard safety faults and water-range faults first, fast tank-water drop follow second, low-frequency depth tracking third, daily nap shallowing fourth, idle/display last.
-- Fast tank-water drop follow may only move the basket downward. A `5-30mm/min` tank drop is followable only when basket depth also becomes shallow by the configured threshold; otherwise raise `E_WATER_JUMP`. It must stop and enter pause with `CHECK WATER` after water level stabilizes, times out, or reaches the per-event distance limit; it must not resume automatic mode without human confirmation.
+- Fast tank-water drop follow may only move the basket downward. DROP entry and dangerous-drop fault decisions require at least `20s` of valid trend elapsed time. A `5-30mm/min` tank drop is followable only when basket depth also becomes shallow by the configured threshold; otherwise raise `E_WATER_JUMP`. It must stop and enter pause with `CHECK WATER` after water level stabilizes, times out, or reaches the per-event distance limit; it must not resume automatic mode without human confirmation.
 - Low-frequency depth tracking may move up or down. Error between the stop deadband and start deadband must block daily nap while observing. Upward correction shares the same daily shallowing budget as daily nap movement; if the upward budget is exhausted, do not fall back to daily nap. Downward correction and fast drop follow do not update `today_pulses_done`.
 - Buzzer silence must not clear fault state.
 - Manual movement after alarm is only allowed inside maintenance mode.
@@ -97,7 +97,7 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - `tank_max_depth_mm = 450`
 - `basket_min_safe_depth_mm = 5`
 - `basket_max_safe_depth_mm = 120`
-- Water jump threshold: non-followable sudden changes still use `10mm/min`; commanded basket motion suppresses basket-only false jumps, while tank jumps and dangerous tank drop above `30mm/min` still raise `E_WATER_JUMP`; ordinary tank drop follow enters at `5mm/min`.
+- Water jump threshold: non-followable sudden changes still use `10mm/min`; commanded basket motion suppresses basket-only false jumps; automatic DROP decisions require at least `20s` valid trend elapsed time, enter ordinary tank drop follow at `5mm/min`, and raise `E_WATER_JUMP` for dangerous tank drop above `30mm/min`.
 - Sensor consecutive failure alarm: `5` failures
 - I2C reinitialization failure alarm: `5` failures
 - Restart depth difference threshold: `3mm`

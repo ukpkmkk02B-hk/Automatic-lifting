@@ -146,6 +146,23 @@ static void AutoControl_StartDropFromTrend(const WaterDepth_Trend_t *trend, uint
 	AutoControl_ResetTrack(now_ms);
 }
 
+// DROP 入口和危险掉水报警需要足够长的趋势时间，避免短窗口端点噪声被放大为 mm/min。
+static uint8_t AutoControl_GetDropDecisionTrend(uint32_t now_ms, WaterDepth_Trend_t *trend)
+{
+	if (WaterDepth_GetTrend(now_ms,
+	                        BOARD_DROP_TREND_WINDOW_MS,
+	                        BOARD_DROP_TREND_MIN_SAMPLES,
+	                        trend) != WATER_DEPTH_OK)
+	{
+		return 0U;
+	}
+	if (trend->elapsed_ms < BOARD_DROP_MIN_TREND_ELAPSED_MS)
+	{
+		return 0U;
+	}
+	return 1U;
+}
+
 // 监测是否满足快速掉水入口条件；危险掉水直接故障，可跟随掉水进入 DROP 模式。
 static void AutoControl_ServiceDropEntry(uint32_t now_ms,
                                          const AutoControl_Input_t *input,
@@ -156,10 +173,7 @@ static void AutoControl_ServiceDropEntry(uint32_t now_ms,
 	int32_t entry_rate_x10;
 	int32_t danger_rate_x10;
 
-	if (WaterDepth_GetTrend(now_ms,
-	                        BOARD_DROP_TREND_WINDOW_MS,
-	                        BOARD_DROP_TREND_MIN_SAMPLES,
-	                        &trend) != WATER_DEPTH_OK)
+	if (AutoControl_GetDropDecisionTrend(now_ms, &trend) == 0U)
 	{
 		return;
 	}
@@ -197,10 +211,7 @@ static void AutoControl_ServiceDangerDrop(uint32_t now_ms, AutoControl_Decision_
 	WaterDepth_Trend_t trend;
 	int32_t danger_rate_x10;
 
-	if (WaterDepth_GetTrend(now_ms,
-	                        BOARD_DROP_TREND_WINDOW_MS,
-	                        BOARD_DROP_TREND_MIN_SAMPLES,
-	                        &trend) != WATER_DEPTH_OK)
+	if (AutoControl_GetDropDecisionTrend(now_ms, &trend) == 0U)
 	{
 		return;
 	}
