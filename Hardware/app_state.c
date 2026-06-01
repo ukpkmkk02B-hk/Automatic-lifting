@@ -918,7 +918,7 @@ static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intent
 		homing_status = Homing_Start(now_ms);
 		if (homing_status == HOMING_STATUS_OK)
 		{
-			// 回零开始时先保存“不可信”；完成后由 AppState_ServiceHomingPersistence() 立即保存可信 0 点。
+			// 回零开始时先保存“不可信”；完成后立即保存机械 0 点和退离后的可信位置。
 			s_homing_save_pending = 1U;
 			AppState_SaveState(now_ms);
 		}
@@ -950,7 +950,7 @@ static void AppState_HandleMaintenanceIntents(uint32_t now_ms, const Menu_Intent
 // 函    数：AppState_ServiceHomingPersistence
 // 参    数：now_ms 当前系统毫秒时间戳。
 // 返 回 值：无
-// 注意事项：回零完成会把位置置为可信 0 pulse，必须立即写入 Flash，不能等 1h 运行保存。
+// 注意事项：回零完成会把机械零点和退离后的可信位置写入 Flash，不能等 1h 运行保存。
 static void AppState_ServiceHomingPersistence(uint32_t now_ms)
 {
 	Homing_State_t homing_state;

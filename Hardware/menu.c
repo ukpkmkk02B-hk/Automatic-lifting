@@ -812,6 +812,113 @@ static void Menu_RenderAlarm(void)
 	UiPages_RenderAlarm(&ctx);
 }
 
+static const char *Menu_PositionReasonText(void)
+{
+	if (PositionTracker_IsTrusted() != 0U)
+	{
+		return "OK";
+	}
+
+	switch (PositionTracker_GetUntrustedReason())
+	{
+	case POSITION_TRACKER_UNTRUSTED_NOT_HOMED:
+		return "NOHOME";
+	case POSITION_TRACKER_UNTRUSTED_HOMING_STARTED:
+		return "HOMING";
+	case POSITION_TRACKER_UNTRUSTED_MOTOR_RELEASED:
+		return "MFREL";
+	case POSITION_TRACKER_UNTRUSTED_INTERRUPTED_MOVE:
+		return "INTR";
+	case POSITION_TRACKER_UNTRUSTED_LIMIT_MISMATCH:
+		return "LIMMIS";
+	case POSITION_TRACKER_UNTRUSTED_STALL:
+		return "STALL";
+	case POSITION_TRACKER_UNTRUSTED_RANGE:
+		return "RANGE";
+	default:
+		return "UNTR";
+	}
+}
+
+static const char *Menu_HomeErrorText(ErrorCode_t code)
+{
+	switch (code)
+	{
+	case ERROR_CODE_E_SENSOR_AIR_FAIL:
+		return "HOME AIR FAIL";
+	case ERROR_CODE_E_SENSOR_TANK_FAIL:
+		return "HOME TNK FAIL";
+	case ERROR_CODE_E_SENSOR_BASKET_FAIL:
+		return "HOME BAS FAIL";
+	case ERROR_CODE_E_I2C_A_FAIL:
+		return "HOME I2C-A";
+	case ERROR_CODE_E_I2C_B_FAIL:
+		return "HOME I2C-B";
+	case ERROR_CODE_E_I2C_C_FAIL:
+		return "HOME I2C-C";
+	case ERROR_CODE_E_TANK_LOW:
+		return "HOME TANK LOW";
+	case ERROR_CODE_E_TANK_HIGH:
+		return "HOME TANK HIGH";
+	case ERROR_CODE_E_BASKET_LOW:
+		return "HOME BAS LOW";
+	case ERROR_CODE_E_BASKET_HIGH:
+		return "HOME BAS HIGH";
+	case ERROR_CODE_E_WATER_JUMP:
+		return "HOME WATER";
+	case ERROR_CODE_E_PRESSURE_PHYSICAL:
+		return "HOME PRESS";
+	case ERROR_CODE_E_UPPER_LIMIT:
+		return "HOME UP LIMIT";
+	case ERROR_CODE_E_LOWER_LIMIT:
+		return "HOME DN LIMIT";
+	case ERROR_CODE_E_LIMIT_MISMATCH:
+		return "HOME LIM MISMT";
+	case ERROR_CODE_E_POSITION_UNTRUSTED:
+		return "HOME POS UNTR";
+	case ERROR_CODE_E_STALL:
+		return "HOME STALL";
+	case ERROR_CODE_E_DEPTH_TRACKING:
+		return "HOME DEPTH";
+	case ERROR_CODE_E_SELF_TEST_FAIL:
+		return "HOME SELF FAIL";
+	case ERROR_CODE_E_MOTOR_RELEASED:
+		return "HOME MOTOR REL";
+	default:
+		return "HOME FAULT";
+	}
+}
+
+static const char *Menu_HomeStatusText(void)
+{
+	ErrorCode_t code;
+
+	code = Homing_GetLastErrorCode();
+	if (code != ERROR_CODE_E_NONE)
+	{
+		return Menu_HomeErrorText(code);
+	}
+	if (Homing_IsBusy() != 0U)
+	{
+		return "HOME BUSY";
+	}
+	if (Homing_IsComplete() != 0U)
+	{
+		return "HOME DONE";
+	}
+	if (Homing_GetLastStatus() == HOMING_STATUS_CANCELLED)
+	{
+		return "HOME CANCEL";
+	}
+	if ((Homing_GetLastStatus() != HOMING_STATUS_OK) &&
+	    (Homing_GetLastStatus() != HOMING_STATUS_BUSY))
+	{
+		return "HOME FAULT";
+	}
+
+	return "HOME IDLE";
+}
+
 // 渲染维护页，包含维护菜单、确认页和调试读数页三种视图。
 static void Menu_RenderMaintenance(void)
 {
@@ -824,6 +931,8 @@ static void Menu_RenderMaintenance(void)
 	ctx.menu_count = 4U;
 	ctx.line2 = 0;
 	ctx.line3 = 0;
+	ctx.position_reason_text = Menu_PositionReasonText();
+	ctx.home_status_text = Menu_HomeStatusText();
 	ctx.motor_released = StepperUM244_IsMotorReleased();
 	ctx.position_trusted = PositionTracker_IsTrusted();
 	ctx.homing_busy = Homing_IsBusy();

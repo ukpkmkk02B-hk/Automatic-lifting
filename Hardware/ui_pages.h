@@ -157,6 +157,8 @@ typedef struct
 	uint8_t menu_count;
 	const char *line2;
 	const char *line3;
+	const char *position_reason_text;
+	const char *home_status_text;
 	uint8_t motor_released;
 	uint8_t position_trusted;
 	uint8_t homing_busy;

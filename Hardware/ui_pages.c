@@ -748,8 +748,9 @@ void UiPages_FormatMaintenance(const UiPages_MaintContext_t *ctx, UiPages_Frame_
 	{
 		UiPages_WriteText(frame[0], 0U, "MAINT DEBUG");
 		UiPages_WriteText(frame[1], 0U, (ctx->motor_released != 0U) ? "MF RELEASED" : "MF HOLD");
-		UiPages_WriteText(frame[2], 0U, (ctx->position_trusted != 0U) ? "POS TRUSTED" : "POS UNTRUST");
-		UiPages_WriteText(frame[3], 0U, (ctx->homing_busy != 0U) ? "HOME BUSY" : "HOME IDLE");
+		UiPages_WriteText(frame[2], 0U, "POS ");
+		UiPages_WriteText(frame[2], 4U, (ctx->position_reason_text != 0) ? ctx->position_reason_text : "---");
+		UiPages_WriteText(frame[3], 0U, (ctx->home_status_text != 0) ? ctx->home_status_text : "HOME ---");
 		return;
 	}
 

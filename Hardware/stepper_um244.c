@@ -23,6 +23,16 @@ typedef enum
 	STEPPER_RAW_LIMIT_MISMATCH
 } StepperUM244_RawLimitResult_t;
 
+typedef enum
+{
+	// 滤波后的限位允许继续启动或输出 STEP。
+	STEPPER_FILTERED_LIMIT_OK = 0,
+	// 启动前或 DIR 建立等待期间已碰到回零目标限位。
+	STEPPER_FILTERED_LIMIT_EXPECTED,
+	// 非预期限位或左右不一致，需要进入故障态。
+	STEPPER_FILTERED_LIMIT_FAULT
+} StepperUM244_FilteredLimitResult_t;
+
 static volatile StepperUM244_State_t s_state;
 static volatile StepperUM244_Direction_t s_direction;
 static volatile uint16_t s_target_pulses;
@@ -30,6 +40,7 @@ static volatile uint16_t s_completed_pulses;
 static volatile uint16_t s_frequency_hz;
 static volatile uint8_t s_step_active;
 static volatile uint8_t s_expect_limit_stop;
+static volatile uint8_t s_allow_lower_mismatch;
 static volatile uint8_t s_motor_released;
 static volatile uint8_t s_initialized;
 static volatile StepperUM244_StopReason_t s_stop_reason;
@@ -119,29 +130,61 @@ static void StepperUM244_SetLimitError(StepperUM244_Direction_t direction)
 
 // 函    数：StepperUM244_CheckFilteredLimit
 // 参    数：direction 准备启动的运动方向。
-// 返 回 值：1 表示该方向被滤波限位或左右不一致禁止，0 表示允许继续检查。
+// 返 回 值：滤波限位结果，区分允许继续、预期触限和故障触限。
 // 注意事项：用于命令发出前安全检查，避免明知到限仍启动 STEP。
-static uint8_t StepperUM244_CheckFilteredLimit(StepperUM244_Direction_t direction)
+static uint8_t StepperUM244_IsExpectedFilteredLimit(StepperUM244_Direction_t direction)
+{
+	if (direction == STEPPER_UM244_DIRECTION_UP)
+	{
+		return Limit_IsAnyUpperActive();
+	}
+
+	return Limit_IsAnyLowerActive();
+}
+
+static StepperUM244_FilteredLimitResult_t StepperUM244_CheckFilteredLimit(StepperUM244_Direction_t direction,
+                                                                          uint8_t expect_limit_stop,
+                                                                          uint8_t allow_lower_mismatch)
 {
 	Limit_Direction_t limit_direction;
 
 	limit_direction = StepperUM244_ToLimitDirection(direction);
 
-	if (Limit_IsSameDirectionMismatch() != 0U)
+	if (Limit_IsUpperMismatch() != 0U)
 	{
 		// 左右同方向限位不一致表示机械或传感器不同步，禁止任何方向运动。
 		ErrorManager_Set(ERROR_CODE_E_LIMIT_MISMATCH);
-		return 1U;
+		s_stop_reason = STEPPER_UM244_STOP_MISMATCH_FAULT;
+		return STEPPER_FILTERED_LIMIT_FAULT;
+	}
+
+	/*
+	 * StartUntilLimit() 在启动前或 DIR 建立等待期间可能已经碰到目标限位。
+	 * 向下回零时任一下限位先触发属于预期停止，交给回零状态机执行退离。
+	 */
+	if ((expect_limit_stop != 0U) &&
+	    (StepperUM244_IsExpectedFilteredLimit(direction) != 0U))
+	{
+		s_stop_reason = STEPPER_UM244_STOP_EXPECTED_LIMIT;
+		return STEPPER_FILTERED_LIMIT_EXPECTED;
+	}
+
+	if ((Limit_IsLowerMismatch() != 0U) && (allow_lower_mismatch == 0U))
+	{
+		ErrorManager_Set(ERROR_CODE_E_LIMIT_MISMATCH);
+		s_stop_reason = STEPPER_UM244_STOP_MISMATCH_FAULT;
+		return STEPPER_FILTERED_LIMIT_FAULT;
 	}
 
 	if (Limit_IsDirectionBlocked(limit_direction) != 0U)
 	{
 		// 命令发出前先用滤波限位判断，避免明知到限仍启动 STEP。
 		StepperUM244_SetLimitError(direction);
-		return 1U;
+		s_stop_reason = STEPPER_UM244_STOP_LIMIT_FAULT;
+		return STEPPER_FILTERED_LIMIT_FAULT;
 	}
 
-	return 0U;
+	return STEPPER_FILTERED_LIMIT_OK;
 }
 
 // 函    数：StepperUM244_CheckRawLimitInIrq
@@ -160,7 +203,37 @@ static StepperUM244_RawLimitResult_t StepperUM244_CheckRawLimitInIrq(void)
 	left_lower = Limit_ReadRaw(LIMIT_LEFT_LOWER);
 	right_lower = Limit_ReadRaw(LIMIT_RIGHT_LOWER);
 
-	if ((left_upper != right_upper) || (left_lower != right_lower))
+	if (left_upper != right_upper)
+	{
+		// 上限位左右不一致不是回零下限位触碰过渡，任何运动中都必须立即急停。
+		ErrorManager_Set(ERROR_CODE_E_LIMIT_MISMATCH);
+		s_stop_reason = STEPPER_UM244_STOP_MISMATCH_FAULT;
+		return STEPPER_RAW_LIMIT_MISMATCH;
+	}
+
+	if (s_expect_limit_stop != 0U)
+	{
+		if (s_direction == STEPPER_UM244_DIRECTION_UP)
+		{
+			if ((left_upper != 0U) || (right_upper != 0U))
+			{
+				// 预期上限位停止优先于左右瞬时一致性判断，避免同一方向限位先后触发误判。
+				s_stop_reason = STEPPER_UM244_STOP_EXPECTED_LIMIT;
+				return STEPPER_RAW_LIMIT_EXPECTED;
+			}
+		}
+		else
+		{
+			if ((left_lower != 0U) || (right_lower != 0U))
+			{
+				// 回零向下搜索时任一下限位先触发即停止，随后由回零状态机退离限位。
+				s_stop_reason = STEPPER_UM244_STOP_EXPECTED_LIMIT;
+				return STEPPER_RAW_LIMIT_EXPECTED;
+			}
+		}
+	}
+
+	if ((left_lower != right_lower) && (s_allow_lower_mismatch == 0U))
 	{
 		// 中断内使用原始 GPIO 急停，不等待主循环滤波确认。
 		ErrorManager_Set(ERROR_CODE_E_LIMIT_MISMATCH);
@@ -172,12 +245,6 @@ static StepperUM244_RawLimitResult_t StepperUM244_CheckRawLimitInIrq(void)
 	{
 		if ((left_upper != 0U) || (right_upper != 0U))
 		{
-			if (s_expect_limit_stop != 0U)
-			{
-				// 回零搜索下/上限位时，预期限位触发是正常停止条件。
-				s_stop_reason = STEPPER_UM244_STOP_EXPECTED_LIMIT;
-				return STEPPER_RAW_LIMIT_EXPECTED;
-			}
 			// 非预期上限位触发，立即停机并锁存上限位故障。
 			ErrorManager_Set(ERROR_CODE_E_UPPER_LIMIT);
 			s_stop_reason = STEPPER_UM244_STOP_LIMIT_FAULT;
@@ -188,12 +255,6 @@ static StepperUM244_RawLimitResult_t StepperUM244_CheckRawLimitInIrq(void)
 	{
 		if ((left_lower != 0U) || (right_lower != 0U))
 		{
-			if (s_expect_limit_stop != 0U)
-			{
-				// 预期触发下限位用于回零，不作为故障。
-				s_stop_reason = STEPPER_UM244_STOP_EXPECTED_LIMIT;
-				return STEPPER_RAW_LIMIT_EXPECTED;
-			}
 			// 非预期下限位触发，立即停机并锁存下限位故障。
 			ErrorManager_Set(ERROR_CODE_E_LOWER_LIMIT);
 			s_stop_reason = STEPPER_UM244_STOP_LIMIT_FAULT;
@@ -297,6 +358,7 @@ void StepperUM244_Init(void)
 	s_frequency_hz = BOARD_STEPPER_AUTO_FREQ_HZ;
 	s_step_active = 0U;
 	s_expect_limit_stop = 0U;
+	s_allow_lower_mismatch = 0U;
 	s_motor_released = 0U;
 	s_stop_reason = STEPPER_UM244_STOP_NONE;
 	s_dir_ready_ms = 0U;
@@ -310,6 +372,8 @@ void StepperUM244_Init(void)
 // 注意事项：主循环非阻塞调用；只处理 DIR 建立和末脉冲保持，不在这里翻转 STEP。
 void StepperUM244_Poll(uint32_t now_ms)
 {
+	StepperUM244_FilteredLimitResult_t limit_result;
+
 	if (s_initialized == 0U)
 	{
 		return;
@@ -320,8 +384,20 @@ void StepperUM244_Poll(uint32_t now_ms)
 		if (StepperUM244_TimeElapsed(now_ms, s_dir_ready_ms) != 0U)
 		{
 			// DIR 稳定 5ms 后再次检查滤波限位，再允许启动 STEP。
-			if (StepperUM244_CheckFilteredLimit((StepperUM244_Direction_t)s_direction) != 0U)
+			limit_result = StepperUM244_CheckFilteredLimit((StepperUM244_Direction_t)s_direction,
+			                                               (uint8_t)s_expect_limit_stop,
+			                                               (uint8_t)s_allow_lower_mismatch);
+			if (limit_result == STEPPER_FILTERED_LIMIT_EXPECTED)
 			{
+				s_expect_limit_stop = 0U;
+				s_allow_lower_mismatch = 0U;
+				s_state = STEPPER_UM244_STATE_HOLD_WAIT;
+				return;
+			}
+			if (limit_result != STEPPER_FILTERED_LIMIT_OK)
+			{
+				s_expect_limit_stop = 0U;
+				s_allow_lower_mismatch = 0U;
 				s_state = STEPPER_UM244_STATE_FAULT;
 				return;
 			}
@@ -345,15 +421,19 @@ void StepperUM244_Poll(uint32_t now_ms)
 
 // 函    数：StepperUM244_StartPulsesInternal
 // 参    数：direction 运动方向；pulses 有限脉冲数；frequency_hz 脉冲频率；
-//           now_ms 当前毫秒时间戳；expect_limit_stop 非 0 表示预期限位可作为正常停止。
+//           now_ms 当前毫秒时间戳；expect_limit_stop 非 0 表示预期限位可作为正常停止；
+//           allow_lower_mismatch 非 0 表示允许回零退离下限位时的下限位先后释放。
 // 返 回 值：命令状态。
 // 注意事项：所有运动都经此函数启动，统一做参数、忙锁、滤波限位和 MF 保持检查。
 static StepperUM244_Status_t StepperUM244_StartPulsesInternal(StepperUM244_Direction_t direction,
                                                               uint16_t pulses,
                                                               uint16_t frequency_hz,
                                                               uint32_t now_ms,
-                                                              uint8_t expect_limit_stop)
+                                                              uint8_t expect_limit_stop,
+                                                              uint8_t allow_lower_mismatch)
 {
+	StepperUM244_FilteredLimitResult_t limit_result;
+
 	if ((s_initialized == 0U) ||
 	    (pulses == 0U) ||
 	    (frequency_hz < STEPPER_MIN_FREQ_HZ) ||
@@ -378,8 +458,26 @@ static StepperUM244_Status_t StepperUM244_StartPulsesInternal(StepperUM244_Direc
 		return STEPPER_UM244_STATUS_BUSY;
 	}
 
-	if (StepperUM244_CheckFilteredLimit(direction) != 0U)
+	s_stop_reason = STEPPER_UM244_STOP_NONE;
+	limit_result = StepperUM244_CheckFilteredLimit(direction,
+	                                               expect_limit_stop,
+	                                               allow_lower_mismatch);
+	if (limit_result == STEPPER_FILTERED_LIMIT_EXPECTED)
 	{
+		s_direction = direction;
+		s_target_pulses = pulses;
+		s_completed_pulses = 0U;
+		s_frequency_hz = frequency_hz;
+		s_step_active = 0U;
+		s_expect_limit_stop = 0U;
+		s_allow_lower_mismatch = 0U;
+		s_hold_deadline_ms = 0U;
+		return STEPPER_UM244_STATUS_OK;
+	}
+	if (limit_result != STEPPER_FILTERED_LIMIT_OK)
+	{
+		s_expect_limit_stop = 0U;
+		s_allow_lower_mismatch = 0U;
 		// 启动前的安全检查失败时直接进入步进故障态。
 		s_state = STEPPER_UM244_STATE_FAULT;
 		return STEPPER_UM244_STATUS_ERROR_LIMIT;
@@ -391,6 +489,7 @@ static StepperUM244_Status_t StepperUM244_StartPulsesInternal(StepperUM244_Direc
 	s_frequency_hz = frequency_hz;
 	s_step_active = 0U;
 	s_expect_limit_stop = expect_limit_stop;
+	s_allow_lower_mismatch = allow_lower_mismatch;
 	s_stop_reason = STEPPER_UM244_STOP_NONE;
 	s_hold_deadline_ms = 0U;
 
@@ -419,6 +518,7 @@ StepperUM244_Status_t StepperUM244_StartPulses(StepperUM244_Direction_t directio
 	                                       pulses,
 	                                       frequency_hz,
 	                                       now_ms,
+	                                       0U,
 	                                       0U);
 }
 
@@ -442,6 +542,22 @@ StepperUM244_Status_t StepperUM244_StartNapMove(StepperUM244_Direction_t directi
 	                               now_ms);
 }
 
+// 函    数：StepperUM244_StartHomingBackoff
+// 参    数：pulses 退离限位脉冲数；frequency_hz 脉冲频率；now_ms 当前毫秒时间戳。
+// 返 回 值：命令状态。
+// 注意事项：仅供回零从下限位上升退离使用，允许下限位左右释放不同步，但仍禁止上限位和上限位不一致。
+StepperUM244_Status_t StepperUM244_StartHomingBackoff(uint16_t pulses,
+                                                      uint16_t frequency_hz,
+                                                      uint32_t now_ms)
+{
+	return StepperUM244_StartPulsesInternal(STEPPER_UM244_DIRECTION_UP,
+	                                       pulses,
+	                                       frequency_hz,
+	                                       now_ms,
+	                                       0U,
+	                                       1U);
+}
+
 // 函    数：StepperUM244_StartUntilLimit
 // 参    数：direction 搜索方向；max_pulses 最大搜索脉冲；frequency_hz 脉冲频率；
 //           now_ms 当前毫秒时间戳。
@@ -456,7 +572,8 @@ StepperUM244_Status_t StepperUM244_StartUntilLimit(StepperUM244_Direction_t dire
 	                                       max_pulses,
 	                                       frequency_hz,
 	                                       now_ms,
-	                                       1U);
+	                                       1U,
+	                                       0U);
 }
 
 // 函    数：StepperUM244_Stop
@@ -470,6 +587,7 @@ void StepperUM244_Stop(void)
 	s_state = STEPPER_UM244_STATE_IDLE;
 	s_hold_deadline_ms = 0U;
 	s_expect_limit_stop = 0U;
+	s_allow_lower_mismatch = 0U;
 	s_stop_reason = STEPPER_UM244_STOP_REQUESTED;
 }
 
@@ -484,6 +602,8 @@ void StepperUM244_ClearFault(void)
 		StepperUM244_StopTimer();
 		s_state = STEPPER_UM244_STATE_IDLE;
 		s_stop_reason = STEPPER_UM244_STOP_NONE;
+		s_expect_limit_stop = 0U;
+		s_allow_lower_mismatch = 0U;
 	}
 }
 
@@ -580,6 +700,7 @@ void StepperUM244_TIM2_IRQHandler(void)
 		// 预期限位停止不置故障，但仍立即停止 STEP。
 		StepperUM244_StopTimer();
 		s_expect_limit_stop = 0U;
+		s_allow_lower_mismatch = 0U;
 		s_state = STEPPER_UM244_STATE_HOLD_WAIT;
 		return;
 	}
@@ -588,6 +709,7 @@ void StepperUM244_TIM2_IRQHandler(void)
 		// 任何非预期限位或左右不一致都在中断内立刻停脉冲，显示/恢复交给主循环。
 		StepperUM244_StopTimer();
 		s_expect_limit_stop = 0U;
+		s_allow_lower_mismatch = 0U;
 		s_state = STEPPER_UM244_STATE_FAULT;
 		return;
 	}
@@ -598,6 +720,7 @@ void StepperUM244_TIM2_IRQHandler(void)
 		{
 			StepperUM244_StopTimer();
 			s_expect_limit_stop = 0U;
+			s_allow_lower_mismatch = 0U;
 			s_stop_reason = STEPPER_UM244_STOP_PULSE_DONE;
 			s_state = STEPPER_UM244_STATE_HOLD_WAIT;
 			return;
@@ -616,6 +739,7 @@ void StepperUM244_TIM2_IRQHandler(void)
 		{
 			StepperUM244_StopTimer();
 			s_expect_limit_stop = 0U;
+			s_allow_lower_mismatch = 0U;
 			s_stop_reason = STEPPER_UM244_STOP_PULSE_DONE;
 			s_state = STEPPER_UM244_STATE_HOLD_WAIT;
 		}

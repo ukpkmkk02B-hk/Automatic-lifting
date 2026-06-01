@@ -41,6 +41,12 @@ void PositionTracker_Init(void);
 // 注意事项：回零完成后调用，把当前位置设为 0 pulse，并清除位置不可信错误。
 void PositionTracker_MarkHomed(void);
 
+// 函    数：PositionTracker_MarkHomedWithOffset
+// 参    数：offset_pulses 从机械 0 点退离后的当前位置，单位 pulse。
+// 返 回 值：无
+// 注意事项：用于回零触碰下限位后退离限位的场景；位置仍可信，但当前位置不是 0 pulse。
+void PositionTracker_MarkHomedWithOffset(uint16_t offset_pulses);
+
 // 函    数：PositionTracker_Restore
 // 参    数：pulses Flash 保存的机械位置，单位 pulse；trusted 非 0 表示保存时位置可信。
 // 返 回 值：1 表示恢复为可信位置，0 表示保持或标记为不可信。

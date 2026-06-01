@@ -26,6 +26,15 @@ static void PositionTracker_SetUntrusted(PositionTracker_UntrustedReason_t reaso
 	s_untrusted_reason = reason;
 }
 
+// 按指定脉冲位置建立可信位置；调用方必须已经通过回零或恢复证明该位置可靠。
+static void PositionTracker_SetTrusted(int32_t pulses)
+{
+	s_position_pulses = pulses;
+	s_position_trusted = 1U;
+	s_untrusted_reason = POSITION_TRACKER_UNTRUSTED_NONE;
+	ErrorManager_Clear(ERROR_CODE_E_POSITION_UNTRUSTED);
+}
+
 // 函    数：PositionTracker_Init
 // 参    数：无
 // 返 回 值：无
@@ -43,10 +52,24 @@ void PositionTracker_Init(void)
 // 注意事项：维护回零二次触发下限位后，把最低机械点定义为 0。
 void PositionTracker_MarkHomed(void)
 {
-	s_position_pulses = 0L;
-	s_position_trusted = 1U;
-	s_untrusted_reason = POSITION_TRACKER_UNTRUSTED_NONE;
-	ErrorManager_Clear(ERROR_CODE_E_POSITION_UNTRUSTED);
+	PositionTracker_MarkHomedWithOffset(0U);
+}
+
+// 函    数：PositionTracker_MarkHomedWithOffset
+// 参    数：offset_pulses 从机械 0 点退离后的当前位置，单位 pulse。
+// 返 回 值：无
+// 注意事项：维护回零先找到最低机械点，再退离限位；此接口把退离后的真实位置记为可信。
+void PositionTracker_MarkHomedWithOffset(uint16_t offset_pulses)
+{
+	if ((int32_t)offset_pulses > PositionTracker_MaxPulses())
+	{
+		// 退离距离不应超过机械最大行程；若配置异常，保守标记为范围不可信。
+		s_position_pulses = 0L;
+		PositionTracker_MarkUntrusted(POSITION_TRACKER_UNTRUSTED_RANGE);
+		return;
+	}
+
+	PositionTracker_SetTrusted((int32_t)offset_pulses);
 }
 
 // 函    数：PositionTracker_Restore
@@ -69,10 +92,7 @@ uint8_t PositionTracker_Restore(int32_t pulses, uint8_t trusted)
 		return 0U;
 	}
 
-	s_position_pulses = pulses;
-	s_position_trusted = 1U;
-	s_untrusted_reason = POSITION_TRACKER_UNTRUSTED_NONE;
-	ErrorManager_Clear(ERROR_CODE_E_POSITION_UNTRUSTED);
+	PositionTracker_SetTrusted(pulses);
 	return 1U;
 }
 
@@ -195,9 +215,15 @@ void PositionTracker_ServiceSafety(void)
 		PositionTracker_MarkUntrusted(POSITION_TRACKER_UNTRUSTED_MOTOR_RELEASED);
 	}
 
-	if (Limit_IsSameDirectionMismatch() != 0U)
+	if (Limit_IsUpperMismatch() != 0U)
 	{
-		// 两侧限位状态不一致时，位置估算不再代表两侧真实机械状态。
+		// 上限位不一致不是回零下限位触碰过渡，任何时候都表示两侧位置关系不可靠。
+		PositionTracker_MarkUntrusted(POSITION_TRACKER_UNTRUSTED_LIMIT_MISMATCH);
+	}
+	else if ((Limit_IsLowerMismatch() != 0U) &&
+	         (s_untrusted_reason != POSITION_TRACKER_UNTRUSTED_HOMING_STARTED))
+	{
+		// 下限位不一致在回零触碰/退离阶段允许短暂存在，其他场景仍会让位置不可信。
 		PositionTracker_MarkUntrusted(POSITION_TRACKER_UNTRUSTED_LIMIT_MISMATCH);
 	}
 

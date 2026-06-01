@@ -131,7 +131,10 @@ static void WF5805F_RecordFailure(WF5805F_Context_t *ctx,
                                   uint32_t now_ms)
 {
 	// 本次读数标记为无效，避免上层把旧压力值当作新读数使用。
-	ctx->failure_count++;
+	if (ctx->failure_count < 0xFFFFU)
+	{
+		ctx->failure_count++;
+	}
 	ctx->last_error = status;
 	ctx->reading.valid = 0U;
 	ctx->state = WF5805F_STATE_IDLE;
@@ -281,7 +284,9 @@ static void WF5805F_ReadWhenReady(WF5805F_Context_t *ctx, uint32_t now_ms)
 	ctx->reading.temperature_c_x100 = WF5805F_CalcTemperatureCX100(raw_temperature);
 	ctx->reading.valid = 1U;
 	ctx->reading.timestamp_ms = now_ms;
+	// 完整成功采样说明本次 I2C 通信已恢复，清除连续恢复失败计数；历史告警仍由 error_manager 锁存。
 	ctx->failure_count = 0U;
+	ctx->recovery_failure_count = 0U;
 	ctx->last_error = WF5805F_OK;
 	ctx->state = WF5805F_STATE_IDLE;
 	ctx->next_action_ms = now_ms + WF5805F_SAMPLE_PERIOD_MS;

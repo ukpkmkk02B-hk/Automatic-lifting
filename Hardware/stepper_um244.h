@@ -90,6 +90,16 @@ StepperUM244_Status_t StepperUM244_StartNapMove(StepperUM244_Direction_t directi
                                                 uint16_t pulses,
                                                 uint32_t now_ms);
 
+// 函    数：StepperUM244_StartHomingBackoff
+// 参    数：pulses 回零退离下限位的脉冲数，单位 pulse；frequency_hz STEP 频率，单位 Hz；
+//           now_ms 系统毫秒时间戳。
+// 返 回 值：命令状态。
+// 注意事项：仅供维护回零从下限位上升退离使用；允许下限位左右释放不同步，
+//           但仍不允许上限位触发或上限位左右不一致。
+StepperUM244_Status_t StepperUM244_StartHomingBackoff(uint16_t pulses,
+                                                      uint16_t frequency_hz,
+                                                      uint32_t now_ms);
+
 // 函    数：StepperUM244_StartUntilLimit
 // 参    数：direction 运动方向；max_pulses 最大搜索脉冲数；frequency_hz STEP 频率；
 //           now_ms 系统毫秒时间戳。
