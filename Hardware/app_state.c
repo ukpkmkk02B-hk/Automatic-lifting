@@ -496,7 +496,7 @@ static uint8_t AppState_CanClearLatchedFaults(void)
 	}
 	else
 	{
-		if (AppState_BlockFaultClearIf((depth.tank_depth_mm_x10 < ((int32_t)BOARD_TANK_MIN_DEPTH_MM * 10L)) ? 1U : 0U,
+		if (AppState_BlockFaultClearIf((WaterDepth_IsTankLowActive() != 0U) ? 1U : 0U,
 		                               ERROR_CODE_E_TANK_LOW) != 0U)
 		{
 			blocked = 1U;

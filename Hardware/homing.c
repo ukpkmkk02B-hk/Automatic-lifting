@@ -80,7 +80,7 @@ static ErrorCode_t Homing_GetActiveWaterFaultCode(void)
 		return ERROR_CODE_E_NONE;
 	}
 
-	if (depth.tank_depth_mm_x10 < ((int32_t)BOARD_TANK_MIN_DEPTH_MM * 10L)) { return ERROR_CODE_E_TANK_LOW; }
+	if (WaterDepth_IsTankLowActive() != 0U) { return ERROR_CODE_E_TANK_LOW; }
 	if (depth.tank_depth_mm_x10 > ((int32_t)BOARD_TANK_MAX_DEPTH_MM * 10L)) { return ERROR_CODE_E_TANK_HIGH; }
 	if (depth.basket_depth_mm_x10 < ((int32_t)BOARD_BASKET_MIN_SAFE_DEPTH_MM * 10L)) { return ERROR_CODE_E_BASKET_LOW; }
 	if (depth.basket_depth_mm_x10 > ((int32_t)BOARD_BASKET_MAX_SAFE_DEPTH_MM * 10L)) { return ERROR_CODE_E_BASKET_HIGH; }

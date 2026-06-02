@@ -42,6 +42,9 @@ static int32_t s_jump_ref_tank_mm_x10;
 static int32_t s_basket_zero_offset_hpa_x100;
 static int32_t s_tank_zero_offset_hpa_x100;
 static uint8_t s_basket_motion_active;
+static uint8_t s_tank_low_active;
+static uint8_t s_tank_low_confirm_count;
+static uint8_t s_tank_low_release_count;
 
 // 函    数：WaterDepth_IsSensorValid
 // 参    数：sensor WF5805F 传感器编号。
@@ -75,14 +78,14 @@ static void WaterDepth_FilterReset(WaterDepth_Filter_t *filter)
 //           timestamp_ms 该压力读数的采样时间戳。
 // 返 回 值：无
 // 注意事项：同一时间戳样本只入队一次，避免主循环多次读取同一笔传感器数据污染平均值。
-static void WaterDepth_FilterAdd(WaterDepth_Filter_t *filter,
-                                 int32_t pressure_hpa_x100,
-                                 uint32_t timestamp_ms)
+static uint8_t WaterDepth_FilterAdd(WaterDepth_Filter_t *filter,
+                                    int32_t pressure_hpa_x100,
+                                    uint32_t timestamp_ms)
 {
 	if (timestamp_ms == filter->last_timestamp_ms)
 	{
 		// 同一传感器样本只允许进入滤波一次。
-		return;
+		return 0U;
 	}
 
 	filter->samples[filter->index] = pressure_hpa_x100;
@@ -98,6 +101,7 @@ static void WaterDepth_FilterAdd(WaterDepth_Filter_t *filter,
 	}
 
 	filter->last_timestamp_ms = timestamp_ms;
+	return 1U;
 }
 
 // 函    数：WaterDepth_FilterAverage
@@ -239,22 +243,80 @@ static void WaterDepth_CheckSensorFailures(void)
 // 参    数：sensor WF5805F 传感器编号。
 // 返 回 值：无
 // 注意事项：只把 WF5805F_OK 且 valid=1 的压力加入滤波，失败读数不参与水深计算。
-static void WaterDepth_UpdateFilterFromSensor(WF5805F_Sensor_t sensor)
+static uint8_t WaterDepth_UpdateFilterFromSensor(WF5805F_Sensor_t sensor)
 {
 	WF5805F_Reading_t reading;
 
 	if (!WaterDepth_IsSensorValid(sensor))
 	{
-		return;
+		return 0U;
 	}
 
 	if ((WF5805F_GetReading(sensor, &reading) == WF5805F_OK) &&
 	    (reading.valid != 0U))
 	{
 		// 只把有效压力值加入滑动平均，失败读数不会污染水深计算。
-		WaterDepth_FilterAdd(&s_filters[sensor],
-		                     reading.pressure_hpa_x100,
-		                     reading.timestamp_ms);
+		return WaterDepth_FilterAdd(&s_filters[sensor],
+		                            reading.pressure_hpa_x100,
+		                            reading.timestamp_ms);
+	}
+
+	return 0U;
+}
+
+// 鱼缸低水位使用新有效 P_tank 样本连续确认，避免 250mm 阈值附近的单次跳变直接锁存严重故障。
+static void WaterDepth_UpdateTankLowDebounce(uint8_t tank_sample_updated)
+{
+	int32_t low_threshold_mm_x10;
+	int32_t release_threshold_mm_x10;
+
+	if (tank_sample_updated == 0U)
+	{
+		return;
+	}
+
+	low_threshold_mm_x10 = (int32_t)BOARD_TANK_MIN_DEPTH_MM * 10L;
+	release_threshold_mm_x10 =
+		((int32_t)BOARD_TANK_MIN_DEPTH_MM + (int32_t)BOARD_TANK_LOW_RELEASE_MARGIN_MM) * 10L;
+
+	if (s_tank_low_active != 0U)
+	{
+		if (s_state.tank_depth_mm_x10 >= release_threshold_mm_x10)
+		{
+			if (s_tank_low_release_count < BOARD_TANK_LOW_RELEASE_SAMPLES)
+			{
+				s_tank_low_release_count++;
+			}
+			if (s_tank_low_release_count >= BOARD_TANK_LOW_RELEASE_SAMPLES)
+			{
+				s_tank_low_active = 0U;
+				s_tank_low_confirm_count = 0U;
+				s_tank_low_release_count = BOARD_TANK_LOW_RELEASE_SAMPLES;
+			}
+		}
+		else
+		{
+			s_tank_low_release_count = 0U;
+		}
+		return;
+	}
+
+	if (s_state.tank_depth_mm_x10 < low_threshold_mm_x10)
+	{
+		if (s_tank_low_confirm_count < BOARD_TANK_LOW_CONFIRM_SAMPLES)
+		{
+			s_tank_low_confirm_count++;
+		}
+		if (s_tank_low_confirm_count >= BOARD_TANK_LOW_CONFIRM_SAMPLES)
+		{
+			s_tank_low_active = 1U;
+			s_tank_low_confirm_count = BOARD_TANK_LOW_CONFIRM_SAMPLES;
+			s_tank_low_release_count = 0U;
+		}
+	}
+	else
+	{
+		s_tank_low_confirm_count = 0U;
 	}
 }
 
@@ -264,9 +326,10 @@ static void WaterDepth_UpdateFilterFromSensor(WF5805F_Sensor_t sensor)
 // 注意事项：水深单位为 mm_x10，阈值宏为 mm，因此比较前统一乘以 10。
 static void WaterDepth_CheckRanges(void)
 {
-	if (s_state.tank_depth_mm_x10 < ((int32_t)BOARD_TANK_MIN_DEPTH_MM * 10L))
+	if (s_tank_low_active != 0U)
 	{
 		// 鱼缸整体水深低于 250mm，自动运动需要停止。
+		// 这里的 active 已经过连续 P_tank 新样本确认，并会保持到 260mm 以上连续恢复。
 		ErrorManager_Set(ERROR_CODE_E_TANK_LOW);
 	}
 	if (s_state.tank_depth_mm_x10 > ((int32_t)BOARD_TANK_MAX_DEPTH_MM * 10L))
@@ -507,6 +570,9 @@ void WaterDepth_Init(void)
 	s_basket_zero_offset_hpa_x100 = 0L;
 	s_tank_zero_offset_hpa_x100 = 0L;
 	s_basket_motion_active = 0U;
+	s_tank_low_active = 0U;
+	s_tank_low_confirm_count = 0U;
+	s_tank_low_release_count = 0U;
 }
 
 // 函    数：WaterDepth_Update
@@ -518,12 +584,13 @@ void WaterDepth_Update(uint32_t now_ms)
 	int32_t air;
 	int32_t basket;
 	int32_t tank;
+	uint8_t tank_sample_updated;
 
 	WaterDepth_CheckSensorFailures();
 
 	WaterDepth_UpdateFilterFromSensor(WF5805F_SENSOR_AIR);
 	WaterDepth_UpdateFilterFromSensor(WF5805F_SENSOR_BASKET);
-	WaterDepth_UpdateFilterFromSensor(WF5805F_SENSOR_TANK);
+	tank_sample_updated = WaterDepth_UpdateFilterFromSensor(WF5805F_SENSOR_TANK);
 
 	if ((WaterDepth_FilterAverage(&s_filters[WF5805F_SENSOR_AIR], &air) == 0U) ||
 	    (WaterDepth_FilterAverage(&s_filters[WF5805F_SENSOR_BASKET], &basket) == 0U) ||
@@ -542,6 +609,7 @@ void WaterDepth_Update(uint32_t now_ms)
 	s_state.valid = 1U;
 	s_state.timestamp_ms = now_ms;
 
+	WaterDepth_UpdateTankLowDebounce(tank_sample_updated);
 	WaterDepth_RecordTrendSample(now_ms);
 	WaterDepth_CheckPhysical();
 	WaterDepth_CheckRanges();
@@ -561,6 +629,15 @@ WaterDepth_Status_t WaterDepth_GetState(WaterDepth_State_t *state)
 
 	*state = s_state;
 	return (s_state.valid != 0U) ? WATER_DEPTH_OK : WATER_DEPTH_PENDING;
+}
+
+// 函    数：WaterDepth_IsTankLowActive
+// 参    数：无
+// 返 回 值：1 表示当前鱼缸低水位根因仍存在；0 表示已按迟滞和连续样本确认恢复。
+// 注意事项：该接口只描述当前根因，不清除 error_manager 中已经锁存的 E_TANK_LOW。
+uint8_t WaterDepth_IsTankLowActive(void)
+{
+	return (s_tank_low_active != 0U) ? 1U : 0U;
 }
 
 // 函    数：WaterDepth_GetTrend

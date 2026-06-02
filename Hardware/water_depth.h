@@ -76,6 +76,12 @@ void WaterDepth_Update(uint32_t now_ms);
 // 注意事项：调用方必须检查返回值，不能使用未有效水深做控制判断。
 WaterDepth_Status_t WaterDepth_GetState(WaterDepth_State_t *state);
 
+// 函    数：WaterDepth_IsTankLowActive
+// 参    数：无
+// 返 回 值：1 表示当前鱼缸低水位根因仍存在；0 表示已按迟滞和连续样本确认恢复。
+// 注意事项：该接口不清除已经锁存的 E_TANK_LOW，仅供回零预检和报警清除复查使用。
+uint8_t WaterDepth_IsTankLowActive(void);
+
 // 函    数：WaterDepth_GetTrend
 // 参    数：now_ms 当前系统毫秒时间戳；window_ms 趋势窗口；min_samples 最小有效样本数；trend 输出趋势。
 // 返 回 值：WATER_DEPTH_OK 表示趋势有效；样本不足返回 PENDING；参数非法返回 ERROR_PARAM。

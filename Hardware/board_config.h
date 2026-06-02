@@ -170,6 +170,10 @@
 #define BOARD_WATER_TREND_SAMPLES        40U
 #define BOARD_TANK_MIN_DEPTH_MM          250
 #define BOARD_TANK_MAX_DEPTH_MM          450
+// 鱼缸低水位采用新有效 P_tank 样本连续确认；恢复阈值为 250mm+10mm，避免贴边抖动反复允许清故障。
+#define BOARD_TANK_LOW_CONFIRM_SAMPLES   5U
+#define BOARD_TANK_LOW_RELEASE_MARGIN_MM 10
+#define BOARD_TANK_LOW_RELEASE_SAMPLES   3U
 #define BOARD_BASKET_MIN_SAFE_DEPTH_MM   5
 #define BOARD_BASKET_MAX_SAFE_DEPTH_MM   120
 // 旧水位突变阈值保留用于非可跟随异常；普通鱼缸掉水由快速跟随仲裁处理。
