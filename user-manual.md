@@ -259,32 +259,32 @@ OLED 是 `4 行 x 16 字符`。数值不可用时会显示 `--.-`、`----.--`、
 
 报警页第 1 行显示短原因，第 2 行显示错误码。两者含义如下：
 
-| 短原因        | 错误码             | 含义                                                            |
-| ------------- | ------------------ | --------------------------------------------------------------- |
-| `NONE`        | `E_NONE`           | 无错误                                                          |
-| `PARAM DEF`   | `W_PARAM_DEFAULT`  | Flash 参数无效，已载入默认值                                    |
-| `PARAM ERR`   | `W_PARAM_REJECTED` | 参数越界或参数组合不合法                                        |
-| `AIR FAIL`    | `E_SENSOR_AIR`     | 空气参考传感器连续读取失败                                      |
-| `TNK FAIL`    | `E_SENSOR_TANK`    | 鱼缸水深传感器连续读取失败                                      |
-| `BAS FAIL`    | `E_SENSOR_BAS`     | 框篮水深传感器连续读取失败                                      |
-| `I2C-A FAIL`  | `E_I2C_A`          | 空气参考 I2C 总线恢复失败                                       |
-| `I2C-B FAIL`  | `E_I2C_B`          | 框篮传感器 I2C 总线恢复失败                                     |
-| `I2C-C FAIL`  | `E_I2C_C`          | 鱼缸传感器 I2C 总线恢复失败                                     |
-| `TANK LOW`    | `E_TANK_LOW`       | 鱼缸水深连续低于 `250mm`；恢复到约 `260mm` 后仍需人工清除旧锁存 |
-| `TANK HIGH`   | `E_TANK_HIGH`      | 鱼缸水深过高                                                    |
-| `BASKET LOW`  | `E_BASKET_LOW`     | 框篮水深过低                                                    |
-| `BASKET HIGH` | `E_BASKET_HIGH`    | 框篮水深过高                                                    |
-| `WATER JUMP`  | `E_WATER_JUMP`     | 危险掉水、不可跟随突变或非命令运动导致的水深变化过快            |
-| `PRESS PHYS`  | `E_PRESS_PHYS`     | 压力差不符合物理安装条件                                        |
-| `UP LIMIT`    | `E_UPPER_LIMIT`    | 上升方向触发上限位                                              |
-| `DN LIMIT`    | `E_LOWER_LIMIT`    | 下降方向触发下限位                                              |
-| `LIM MISMT`   | `E_LIMIT_MISMT`    | 左右同方向限位不一致                                            |
-| `POS UNTR`    | `E_POS_UNTRUST`    | 位置不可信，不能自动运行                                        |
-| `STALL`       | `E_STALL`          | 运动后水深变化趋势不符合预期                                    |
-| `DEPTH`       | `E_DEPTH_TRACK`    | 目标硬超差、低频修正失败、重启水深差异过大或等待新鲜水深超时    |
-| `SELF FAIL`   | `E_SELF_TEST`      | 开机自检失败                                                    |
-| `MOTOR REL`   | `E_MOTOR_REL`      | 电机释放后请求自动运行，或位置因释放变为不可信                  |
-| `UNKNOWN`     | `E_UNKNOWN`        | 未知错误码                                                      |
+| 短原因        | 错误码             | 含义                                                                          |
+| ------------- | ------------------ | ----------------------------------------------------------------------------- |
+| `NONE`        | `E_NONE`           | 无错误                                                                        |
+| `PARAM DEF`   | `W_PARAM_DEFAULT`  | Flash 参数无效，已载入默认值                                                  |
+| `PARAM ERR`   | `W_PARAM_REJECTED` | 参数越界或参数组合不合法                                                      |
+| `AIR FAIL`    | `E_SENSOR_AIR`     | 空气参考传感器连续读取失败                                                    |
+| `TNK FAIL`    | `E_SENSOR_TANK`    | 鱼缸水深传感器连续读取失败                                                    |
+| `BAS FAIL`    | `E_SENSOR_BAS`     | 框篮水深传感器连续读取失败                                                    |
+| `I2C-A FAIL`  | `E_I2C_A`          | 空气参考 I2C 总线恢复失败                                                     |
+| `I2C-B FAIL`  | `E_I2C_B`          | 框篮传感器 I2C 总线恢复失败                                                   |
+| `I2C-C FAIL`  | `E_I2C_C`          | 鱼缸传感器 I2C 总线恢复失败                                                   |
+| `TANK LOW`    | `E_TANK_LOW`       | 鱼缸水深低于 `250mm` 需约 `10s` 稳定确认；会忽略明显跳变和 I2C-C 刚恢复样本； |
+| `TANK HIGH`   | `E_TANK_HIGH`      | 鱼缸水深过高                                                                  |
+| `BASKET LOW`  | `E_BASKET_LOW`     | 框篮水深过低                                                                  |
+| `BASKET HIGH` | `E_BASKET_HIGH`    | 框篮水深过高                                                                  |
+| `WATER JUMP`  | `E_WATER_JUMP`     | 危险掉水、不可跟随突变或非命令运动导致的水深变化过快                          |
+| `PRESS PHYS`  | `E_PRESS_PHYS`     | 压力差不符合物理安装条件                                                      |
+| `UP LIMIT`    | `E_UPPER_LIMIT`    | 上升方向触发上限位                                                            |
+| `DN LIMIT`    | `E_LOWER_LIMIT`    | 下降方向触发下限位                                                            |
+| `LIM MISMT`   | `E_LIMIT_MISMT`    | 左右同方向限位不一致                                                          |
+| `POS UNTR`    | `E_POS_UNTRUST`    | 位置不可信，不能自动运行                                                      |
+| `STALL`       | `E_STALL`          | 运动后水深变化趋势不符合预期                                                  |
+| `DEPTH`       | `E_DEPTH_TRACK`    | 目标硬超差、低频修正失败、重启水深差异过大或等待新鲜水深超时                  |
+| `SELF FAIL`   | `E_SELF_TEST`      | 开机自检失败                                                                  |
+| `MOTOR REL`   | `E_MOTOR_REL`      | 电机释放后请求自动运行，或位置因释放变为不可信                                |
+| `UNKNOWN`     | `E_UNKNOWN`        | 未知错误码                                                                    |
 
 当前固件错误码以本表为准，不使用旧资料中的 `E_WATER_LOSS`、`E_SENSOR_FAIL`、`E_I2C_STUCK`、`E_LIMIT_TOP`、`E_LIMIT_BOTTOM`、`E_LIMIT_CONFLICT`、`E_PARAM_BAD`、`E_HOME_REQUIRED`、`W_NEED_HOME`、`W_DEPTH_OVER`、`W_AIR_FAIL`。
 
@@ -394,7 +394,7 @@ OLED 是 `4 行 x 16 字符`。数值不可用时会显示 `--.-`、`----.--`、
 | `3 MOTOR HOLD` | 按 `PB10` 后二次确认          | 释放或重新保持电机；释放后位置变为不可信                                           |
 | `4 DEBUG READ` | 按 `PB10`                     | 查看 `MF`、位置可信原因和最近一次回零状态/失败原因                                 |
 
-执行 `1 CAL AIR` 后，三颗传感器仍在空气中时可能出现 `TANK LOW` 或 `BASKET LOW`，这是低水深安全逻辑。`TANK LOW` 需要鱼缸水深连续低于 `250mm` 才锁存；恢复时需读数连续达到约 `260mm` 及以上，才视为当前根因消失。把 `P_tank/P_basket` 放回水中并确认实际水深恢复正常后，可以先执行 `2 HOME ZERO` 建立可信位置；但该动作不会清除旧水位告警，恢复自动运行前仍需按报警页流程清除。
+执行 `1 CAL AIR` 后，三颗传感器仍在空气中时可能出现 `TANK LOW` 或 `BASKET LOW`，这是低水深安全逻辑。`TANK LOW` 需要鱼缸水深低于 `250mm` 并经过约 `10s` 稳定确认才锁存；判定会去除单个 `TNK` 极值，明显跳变或 I2C-C 刚恢复后的样本不会推进严重报警确认。恢复时需读数连续达到约 `260mm` 及以上，才视为当前根因消失。把 `P_tank/P_basket` 放回水中并确认实际水深恢复正常后，可以先执行 `2 HOME ZERO` 建立可信位置；但该动作不会清除旧水位告警，恢复自动运行前仍需按报警页流程清除。
 
 ### 7.3 回零
 

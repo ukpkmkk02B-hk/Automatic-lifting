@@ -42,7 +42,7 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 
 - Calculate `basket_depth_mm` from `((P_basket - P_air) - zero_offset_basket) * 10.197`, where pressure terms are in hPa and `zero_offset_basket` is recorded by `CAL AIR` with all three sensors in the same air environment.
 - Calculate `tank_depth_mm` from `((P_tank - P_air) - zero_offset_tank) * 10.197`, where pressure terms are in hPa and `zero_offset_tank` is recorded by `CAL AIR` with all three sensors in the same air environment.
-- `E_TANK_LOW` is latched only after `tank_depth_mm < 250mm` is confirmed by 5 consecutive new valid `P_tank` samples; the current root cause is considered recovered only after `tank_depth_mm >= 260mm` is confirmed by 3 consecutive new valid samples, and the old latched alarm still requires manual confirmation.
+- `E_TANK_LOW` is latched only after `tank_depth_mm < 250mm` is confirmed by about 10s of stable new valid `P_tank` samples. The low-water confirmation uses a 5-sample trimmed `TNK` decision window, ignores clearly unreasonable `TNK` jumps, and pauses briefly after recent I2C-C/P_tank failures. The current root cause is considered recovered only after `tank_depth_mm >= 260mm` is confirmed by 3 consecutive accepted samples, and the old latched alarm still requires manual confirmation.
 - Default initial target depth: `100mm`.
 - Default final target depth: `10mm`.
 - Default shallowing rate: `1mm/day`.

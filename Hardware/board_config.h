@@ -171,7 +171,13 @@
 #define BOARD_TANK_MIN_DEPTH_MM          250
 #define BOARD_TANK_MAX_DEPTH_MM          450
 // 鱼缸低水位采用新有效 P_tank 样本连续确认；恢复阈值为 250mm+10mm，避免贴边抖动反复允许清故障。
-#define BOARD_TANK_LOW_CONFIRM_SAMPLES   5U
+#define BOARD_TANK_LOW_CONFIRM_SAMPLES   10U
+// 低水位判定专用 TNK 样本数：最近 5 个可接受样本去掉最大/最小值后再参与阈值确认。
+#define BOARD_TANK_LOW_TRIM_SAMPLES      5U
+// 相邻可接受 TNK 样本跳变超过 30mm 时，视为传感器/总线短时异常，不推进低水位确认。
+#define BOARD_TANK_LOW_MAX_STEP_MM       30
+// I2C-C/P_tank 最近失败后 5s 内暂停低水位确认，避免刚恢复的异常样本锁存严重故障。
+#define BOARD_TANK_LOW_I2C_GRACE_MS      5000UL
 #define BOARD_TANK_LOW_RELEASE_MARGIN_MM 10
 #define BOARD_TANK_LOW_RELEASE_SAMPLES   3U
 #define BOARD_BASKET_MIN_SAFE_DEPTH_MM   5
