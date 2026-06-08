@@ -169,6 +169,7 @@
 #define BOARD_WATER_TREND_SAMPLE_MS      1000UL
 #define BOARD_WATER_TREND_SAMPLES        40U
 #define BOARD_TANK_MIN_DEPTH_MM          250
+// 鱼缸高水位由机械溢流/漏水限位保证；该阈值仅保留为历史/诊断参考，不再锁存 E_TANK_HIGH。
 #define BOARD_TANK_MAX_DEPTH_MM          450
 // 鱼缸低水位采用新有效 P_tank 样本连续确认；恢复阈值为 250mm+10mm，避免贴边抖动反复允许清故障。
 #define BOARD_TANK_LOW_CONFIRM_SAMPLES   10U

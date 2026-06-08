@@ -73,7 +73,6 @@ static ErrorCode_t Homing_GetActiveWaterFaultCode(void)
 	if (WaterDepth_GetState(&depth) != WATER_DEPTH_OK)
 	{
 		if (ErrorManager_IsActive(ERROR_CODE_E_TANK_LOW) != 0U) { return ERROR_CODE_E_TANK_LOW; }
-		if (ErrorManager_IsActive(ERROR_CODE_E_TANK_HIGH) != 0U) { return ERROR_CODE_E_TANK_HIGH; }
 		if (ErrorManager_IsActive(ERROR_CODE_E_BASKET_LOW) != 0U) { return ERROR_CODE_E_BASKET_LOW; }
 		if (ErrorManager_IsActive(ERROR_CODE_E_BASKET_HIGH) != 0U) { return ERROR_CODE_E_BASKET_HIGH; }
 		if (ErrorManager_IsActive(ERROR_CODE_E_PRESSURE_PHYSICAL) != 0U) { return ERROR_CODE_E_PRESSURE_PHYSICAL; }
@@ -81,7 +80,6 @@ static ErrorCode_t Homing_GetActiveWaterFaultCode(void)
 	}
 
 	if (WaterDepth_IsTankLowActive() != 0U) { return ERROR_CODE_E_TANK_LOW; }
-	if (depth.tank_depth_mm_x10 > ((int32_t)BOARD_TANK_MAX_DEPTH_MM * 10L)) { return ERROR_CODE_E_TANK_HIGH; }
 	if (depth.basket_depth_mm_x10 < ((int32_t)BOARD_BASKET_MIN_SAFE_DEPTH_MM * 10L)) { return ERROR_CODE_E_BASKET_LOW; }
 	if (depth.basket_depth_mm_x10 > ((int32_t)BOARD_BASKET_MAX_SAFE_DEPTH_MM * 10L)) { return ERROR_CODE_E_BASKET_HIGH; }
 	if ((depth.basket_depth_mm_x10 < BOARD_PRESSURE_PHYSICAL_MIN_MM_X10) ||

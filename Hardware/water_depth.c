@@ -511,10 +511,6 @@ static void WaterDepth_CheckRanges(void)
 		// 这里的 active 已经过连续 P_tank 新样本确认，并会保持到 260mm 以上连续恢复。
 		ErrorManager_Set(ERROR_CODE_E_TANK_LOW);
 	}
-	if (s_state.tank_depth_mm_x10 > ((int32_t)BOARD_TANK_MAX_DEPTH_MM * 10L))
-	{
-		ErrorManager_Set(ERROR_CODE_E_TANK_HIGH);
-	}
 	if (s_state.basket_depth_mm_x10 < ((int32_t)BOARD_BASKET_MIN_SAFE_DEPTH_MM * 10L))
 	{
 		// 框篮水深低于 5mm 会影响鱼的最低安全活动水深。

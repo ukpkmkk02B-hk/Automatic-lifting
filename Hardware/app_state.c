@@ -501,11 +501,6 @@ static uint8_t AppState_CanClearLatchedFaults(void)
 		{
 			blocked = 1U;
 		}
-		if (AppState_BlockFaultClearIf((depth.tank_depth_mm_x10 > ((int32_t)BOARD_TANK_MAX_DEPTH_MM * 10L)) ? 1U : 0U,
-		                               ERROR_CODE_E_TANK_HIGH) != 0U)
-		{
-			blocked = 1U;
-		}
 		if (AppState_BlockFaultClearIf((depth.basket_depth_mm_x10 < ((int32_t)BOARD_BASKET_MIN_SAFE_DEPTH_MM * 10L)) ? 1U : 0U,
 		                               ERROR_CODE_E_BASKET_LOW) != 0U)
 		{
