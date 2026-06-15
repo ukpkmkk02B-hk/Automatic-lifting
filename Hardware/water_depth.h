@@ -91,6 +91,15 @@ WaterDepth_Status_t WaterDepth_GetTrend(uint32_t now_ms,
                                         uint8_t min_samples,
                                         WaterDepth_Trend_t *trend);
 
+// 函    数：WaterDepth_GetRobustTrend
+// 参    数：now_ms 当前系统毫秒时间戳；window_ms 趋势窗口；min_samples 最少有效样本数；trend 输出鲁棒趋势。
+// 返 回 值：WATER_DEPTH_OK 表示趋势有效；样本不足或处于传感器失败冷却期返回 PENDING；参数非法返回 ERROR_PARAM。
+// 注意事项：首尾各取配置数量的 1s 样本做中值后计算速度，用于 WATER_JUMP 和 DROP 抗单点噪声。
+WaterDepth_Status_t WaterDepth_GetRobustTrend(uint32_t now_ms,
+                                              uint32_t window_ms,
+                                              uint8_t min_samples,
+                                              WaterDepth_Trend_t *trend);
+
 // 函    数：WaterDepth_ConvertPressureDiffToMmX10
 // 参    数：diff_hpa_x100 压力差，单位 hPa_x100。
 // 返 回 值：水深，单位 mm_x10。

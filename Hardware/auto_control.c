@@ -15,6 +15,13 @@ typedef enum
 
 typedef enum
 {
+	AUTO_DROP_FAULT_NONE = 0,
+	AUTO_DROP_FAULT_DANGER,
+	AUTO_DROP_FAULT_NO_SYNC
+} AutoControl_DropFaultCandidate_t;
+
+typedef enum
+{
 	AUTO_TRACK_RESULT_IDLE = 0,
 	AUTO_TRACK_RESULT_BLOCK_DAILY,
 	AUTO_TRACK_RESULT_MOVE,
@@ -39,6 +46,10 @@ static uint32_t s_drop_distance_pulses;
 static uint32_t s_drop_stable_start_ms;
 static int32_t s_drop_hold_basket_mm_x10;
 static uint8_t s_drop_notice;
+static AutoControl_DropFaultCandidate_t s_drop_fault_candidate;
+static uint8_t s_drop_fault_confirm_count;
+static uint8_t s_drop_fault_last_sample_valid;
+static uint32_t s_drop_fault_last_sample_ms;
 
 // 简单有符号绝对值工具，用于 mm_x10 误差和趋势差值比较。
 static int32_t AutoControl_Abs32(int32_t value)
@@ -101,6 +112,50 @@ static void AutoControl_ResetDrop(void)
 	s_drop_distance_pulses = 0UL;
 	s_drop_stable_start_ms = 0UL;
 	s_drop_hold_basket_mm_x10 = 0L;
+	s_drop_fault_candidate = AUTO_DROP_FAULT_NONE;
+	s_drop_fault_confirm_count = 0U;
+	s_drop_fault_last_sample_valid = 0U;
+	s_drop_fault_last_sample_ms = 0UL;
+}
+
+// 重置 DROP 故障候选确认；不清除 DROP 提示，也不清除已锁存的错误码。
+static void AutoControl_ResetDropFaultConfirm(void)
+{
+	s_drop_fault_candidate = AUTO_DROP_FAULT_NONE;
+	s_drop_fault_confirm_count = 0U;
+	s_drop_fault_last_sample_valid = 0U;
+	s_drop_fault_last_sample_ms = 0UL;
+}
+
+// DROP 危险掉水/不可跟随掉水需随新水深样本连续成立，避免单个趋势端点误报。
+static uint8_t AutoControl_ConfirmDropFault(AutoControl_DropFaultCandidate_t candidate,
+                                            uint32_t sample_ms)
+{
+	if (candidate == AUTO_DROP_FAULT_NONE)
+	{
+		AutoControl_ResetDropFaultConfirm();
+		return 0U;
+	}
+	if (candidate != s_drop_fault_candidate)
+	{
+		s_drop_fault_candidate = candidate;
+		s_drop_fault_confirm_count = 0U;
+		s_drop_fault_last_sample_valid = 0U;
+		s_drop_fault_last_sample_ms = 0UL;
+	}
+	if ((s_drop_fault_last_sample_valid != 0U) &&
+	    (sample_ms == s_drop_fault_last_sample_ms))
+	{
+		return (s_drop_fault_confirm_count >= BOARD_DROP_FAULT_CONFIRM_SAMPLES) ? 1U : 0U;
+	}
+
+	s_drop_fault_last_sample_valid = 1U;
+	s_drop_fault_last_sample_ms = sample_ms;
+	if (s_drop_fault_confirm_count < BOARD_DROP_FAULT_CONFIRM_SAMPLES)
+	{
+		s_drop_fault_confirm_count++;
+	}
+	return (s_drop_fault_confirm_count >= BOARD_DROP_FAULT_CONFIRM_SAMPLES) ? 1U : 0U;
 }
 
 // 维护低频闭环的小时/每日 pulse 预算窗口，限制自动纠偏过度动作。
@@ -142,6 +197,7 @@ static void AutoControl_StartDropFromTrend(const WaterDepth_Trend_t *trend, uint
 	s_drop_hold_basket_mm_x10 = trend->oldest_basket_depth_mm_x10;
 	s_drop_notice = 0U;
 	s_display = AUTO_CONTROL_DISPLAY_DROP;
+	AutoControl_ResetDropFaultConfirm();
 	// DROP 抢占低频闭环等待/稳定状态，防止两个自动控制源同时争用 STEP。
 	AutoControl_ResetTrack(now_ms);
 }
@@ -149,10 +205,10 @@ static void AutoControl_StartDropFromTrend(const WaterDepth_Trend_t *trend, uint
 // DROP 入口和危险掉水报警需要足够长的趋势时间，避免短窗口端点噪声被放大为 mm/min。
 static uint8_t AutoControl_GetDropDecisionTrend(uint32_t now_ms, WaterDepth_Trend_t *trend)
 {
-	if (WaterDepth_GetTrend(now_ms,
-	                        BOARD_DROP_TREND_WINDOW_MS,
-	                        BOARD_DROP_TREND_MIN_SAMPLES,
-	                        trend) != WATER_DEPTH_OK)
+	if (WaterDepth_GetRobustTrend(now_ms,
+	                              BOARD_DROP_TREND_WINDOW_MS,
+	                              BOARD_DROP_TREND_MIN_SAMPLES,
+	                              trend) != WATER_DEPTH_OK)
 	{
 		return 0U;
 	}
@@ -175,6 +231,7 @@ static void AutoControl_ServiceDropEntry(uint32_t now_ms,
 
 	if (AutoControl_GetDropDecisionTrend(now_ms, &trend) == 0U)
 	{
+		AutoControl_ResetDropFaultConfirm();
 		return;
 	}
 
@@ -182,23 +239,32 @@ static void AutoControl_ServiceDropEntry(uint32_t now_ms,
 	danger_rate_x10 = (int32_t)BOARD_DROP_DANGER_RATE_MM_PER_MIN * 10L;
 	if (trend.tank_drop_rate_mm_x10_per_min > danger_rate_x10)
 	{
-		decision->type = AUTO_CONTROL_DECISION_FAULT;
-		decision->error_code = ERROR_CODE_E_WATER_JUMP;
-		decision->display = AUTO_CONTROL_DISPLAY_DROP;
+		if (AutoControl_ConfirmDropFault(AUTO_DROP_FAULT_DANGER,
+		                                 input->depth.timestamp_ms) != 0U)
+		{
+			decision->type = AUTO_CONTROL_DECISION_FAULT;
+			decision->error_code = ERROR_CODE_E_WATER_JUMP;
+			decision->display = AUTO_CONTROL_DISPLAY_DROP;
+		}
 		return;
 	}
 	if (trend.tank_drop_rate_mm_x10_per_min < entry_rate_x10)
 	{
+		AutoControl_ResetDropFaultConfirm();
 		return;
 	}
 
-	basket_shallow_mm_x10 = trend.oldest_basket_depth_mm_x10 - input->depth.basket_depth_mm_x10;
+	basket_shallow_mm_x10 = trend.oldest_basket_depth_mm_x10 - trend.newest_basket_depth_mm_x10;
 	if (basket_shallow_mm_x10 < BOARD_DROP_START_ERROR_MM_X10)
 	{
 		// 鱼缸在可跟随速度内下降，但框篮水深没有同步变浅，视为不可跟随突变或传感器安装异常。
-		decision->type = AUTO_CONTROL_DECISION_FAULT;
-		decision->error_code = ERROR_CODE_E_WATER_JUMP;
-		decision->display = AUTO_CONTROL_DISPLAY_DROP;
+		if (AutoControl_ConfirmDropFault(AUTO_DROP_FAULT_NO_SYNC,
+		                                 input->depth.timestamp_ms) != 0U)
+		{
+			decision->type = AUTO_CONTROL_DECISION_FAULT;
+			decision->error_code = ERROR_CODE_E_WATER_JUMP;
+			decision->display = AUTO_CONTROL_DISPLAY_DROP;
+		}
 		return;
 	}
 
@@ -206,22 +272,33 @@ static void AutoControl_ServiceDropEntry(uint32_t now_ms,
 }
 
 // DROP 之外也持续监测危险掉水速率，避免等待常规入口时漏报快速失水。
-static void AutoControl_ServiceDangerDrop(uint32_t now_ms, AutoControl_Decision_t *decision)
+static void AutoControl_ServiceDangerDrop(uint32_t now_ms,
+                                          const AutoControl_Input_t *input,
+                                          AutoControl_Decision_t *decision)
 {
 	WaterDepth_Trend_t trend;
 	int32_t danger_rate_x10;
 
 	if (AutoControl_GetDropDecisionTrend(now_ms, &trend) == 0U)
 	{
+		AutoControl_ResetDropFaultConfirm();
 		return;
 	}
 
 	danger_rate_x10 = (int32_t)BOARD_DROP_DANGER_RATE_MM_PER_MIN * 10L;
 	if (trend.tank_drop_rate_mm_x10_per_min > danger_rate_x10)
 	{
-		decision->type = AUTO_CONTROL_DECISION_FAULT;
-		decision->error_code = ERROR_CODE_E_WATER_JUMP;
-		decision->display = AUTO_CONTROL_DISPLAY_DROP;
+		if (AutoControl_ConfirmDropFault(AUTO_DROP_FAULT_DANGER,
+		                                 input->depth.timestamp_ms) != 0U)
+		{
+			decision->type = AUTO_CONTROL_DECISION_FAULT;
+			decision->error_code = ERROR_CODE_E_WATER_JUMP;
+			decision->display = AUTO_CONTROL_DISPLAY_DROP;
+		}
+	}
+	else if (s_drop_fault_candidate == AUTO_DROP_FAULT_DANGER)
+	{
+		AutoControl_ResetDropFaultConfirm();
 	}
 }
 
@@ -282,10 +359,10 @@ static void AutoControl_RequestDropMove(uint32_t now_ms,
 		return;
 	}
 
-	if (WaterDepth_GetTrend(now_ms,
-	                        BOARD_DROP_TREND_WINDOW_MS,
-	                        BOARD_DROP_TREND_MIN_SAMPLES,
-	                        &trend) != WATER_DEPTH_OK)
+	if (WaterDepth_GetRobustTrend(now_ms,
+	                              BOARD_DROP_TREND_WINDOW_MS,
+	                              BOARD_DROP_TREND_MIN_SAMPLES,
+	                              &trend) != WATER_DEPTH_OK)
 	{
 		return;
 	}
@@ -538,7 +615,7 @@ void AutoControl_Arbitrate(uint32_t now_ms,
 	AutoControl_ClearDecision(decision);
 
 	AutoControl_ServiceTrackWindows(now_ms);
-	AutoControl_ServiceDangerDrop(now_ms, decision);
+	AutoControl_ServiceDangerDrop(now_ms, input, decision);
 	if (decision->type == AUTO_CONTROL_DECISION_FAULT)
 	{
 		return;

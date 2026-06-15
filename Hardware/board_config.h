@@ -165,9 +165,11 @@
 // 水深和传感器健康参数。
 // 水深阈值单位为 mm，滤波样本数为最近有效压力读数个数。
 #define BOARD_WATER_FILTER_SAMPLES       5U
-// 水深趋势缓存：每 1s 记录一次滤波水深，覆盖快速掉水 30s 判断窗口。
+// 水深趋势缓存：每 1s 记录一次滤波水深，覆盖 DROP 30s 和 WATER_JUMP 60s 鲁棒判断窗口。
 #define BOARD_WATER_TREND_SAMPLE_MS      1000UL
-#define BOARD_WATER_TREND_SAMPLES        40U
+#define BOARD_WATER_TREND_SAMPLES        70U
+// 鲁棒趋势首尾各取 3 个 1s 样本做中值，避免单个端点噪声被换算成 mm/min。
+#define BOARD_WATER_TREND_ROBUST_EDGE_SAMPLES 3U
 #define BOARD_TANK_MIN_DEPTH_MM          250
 // 鱼缸高水位由机械溢流/漏水限位保证；该阈值仅保留为历史/诊断参考，不再锁存 E_TANK_HIGH。
 #define BOARD_TANK_MAX_DEPTH_MM          450
@@ -185,6 +187,9 @@
 #define BOARD_BASKET_MAX_SAFE_DEPTH_MM   120
 // 旧水位突变阈值保留用于非可跟随异常；普通鱼缸掉水由快速跟随仲裁处理。
 #define BOARD_WATER_JUMP_MM_PER_MIN      10
+// 水位突变严重故障需连续新样本确认，传感器/I2C 刚失败后短暂暂停确认。
+#define BOARD_WATER_JUMP_CONFIRM_SAMPLES 3U
+#define BOARD_WATER_JUMP_SENSOR_GRACE_MS 5000UL
 #define BOARD_SENSOR_FAILURE_LIMIT       5U
 #define BOARD_I2C_RECOVERY_FAILURE_LIMIT 5U
 // 压力差换算水深低于 -2.0mm 视为物理异常，单位 mm_x10。
@@ -226,6 +231,8 @@
 #define BOARD_DROP_STABLE_WAIT_MS           15000UL
 // 自动 DROP 入口/危险掉水报警至少需要 20s 有效趋势，避免 2s 短窗口噪声被换算成 mm/min 后误触发。
 #define BOARD_DROP_MIN_TREND_ELAPSED_MS     20000UL
+// DROP 危险掉水/不可跟随掉水故障需连续新样本确认，避免单个趋势端点误报。
+#define BOARD_DROP_FAULT_CONFIRM_SAMPLES    3U
 
 // Flash 参数区：STM32F103C8T6 标称 64KB Flash，末尾两个 1KB 页用于 A/B 循环日志。
 // 注意事项：Keil IROM 必须限制为 0x08000000 + 0x0000F800，避免代码覆盖参数页。
