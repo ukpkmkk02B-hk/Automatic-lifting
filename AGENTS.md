@@ -79,6 +79,23 @@ Do not modify existing `Hardware/*.c` files unless needed to integrate the new m
 - Preserve SWD pins `PA13/PA14`.
 - If any pin assignment conflicts with the design document, stop and ask before changing it.
 
+## Chinese Detailed Comment Rules
+
+When generating or modifying firmware code, add clear Simplified Chinese comments. Use the code in `Reference/软件I2C读写MPU6050` as the comment-style reference, but only for annotation style. Do not copy its blocking `Delay` loops, busy waits, or whole modules into this project.
+
+- Public `.h` interfaces must include Chinese comments explaining module purpose, key APIs, parameters, return values, and safety assumptions.
+- Non-trivial public functions in `.c` files should use a short Chinese function header block similar to the reference style: function purpose, parameters, return value, and important notes.
+- Simple `static` helpers may use one concise line comment when the name is already clear.
+- Important macros in `board_config.h` must include Chinese comments explaining hardware meaning, unit, and valid range.
+- State machines must comment each state and major transition condition.
+- Interrupt handlers must comment what is allowed inside the interrupt and what must be deferred to the main loop.
+- Safety-related logic must be commented, especially limit switch stop, I2C timeout, sensor failure, jam detection, alarm latch, and motor hold/release behavior.
+- Protocol and hardware timing code must comment the key sequence steps, such as I2C start/stop/ACK, 9-pulse bus recovery, STEP pulse start/stop, DIR setup/hold, and Flash page switching.
+- Comments must clearly mark units such as `ms`, `Hz`, `pulse`, `mm`, `mm_x10`, `hPa_x100`, valid ranges, active-high/active-low behavior, and whether an API is blocking or non-blocking.
+- Existing generated code should be supplemented with Chinese comments stage by stage before adding the next major feature.
+- Do not add meaningless comments such as "变量加一" or "调用函数".
+- Keep comments detailed enough for later maintenance, but not tutorial-level on every line. Prefer explaining why, hardware assumptions, units, and safety constraints over repeating what the code already says.
+
 ## Expected Modules
 
 Implement code as focused modules, for example:

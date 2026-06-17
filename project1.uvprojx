@@ -18,7 +18,7 @@
           <Vendor>STMicroelectronics</Vendor>
           <PackID>Keil.STM32F1xx_DFP.2.4.1</PackID>
           <PackURL>https://www.keil.com/pack/</PackURL>
-          <Cpu>IRAM(0x20000000,0x00005000) IROM(0x08000000,0x00010000) CPUTYPE("Cortex-M3") CLOCK(12000000) ELITTLE</Cpu>
+          <Cpu>IRAM(0x20000000,0x00005000) IROM(0x08000000,0x0000F800) CPUTYPE("Cortex-M3") CLOCK(12000000) ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
           <StartupFile></StartupFile>
           <FlashDriverDll>UL2CM3(-S0 -C0 -P0 -FD20000000 -FC1000 -FN1 -FF0STM32F10x_128 -FS08000000 -FL020000 -FP0($$Device:STM32F103C8$Flash\STM32F10x_128.FLM))</FlashDriverDll>
@@ -249,7 +249,7 @@
               <IROM>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x10000</Size>
+                <Size>0xF800</Size>
               </IROM>
               <XRAM>
                 <Type>0</Type>
@@ -274,7 +274,7 @@
               <OCR_RVCT4>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x10000</Size>
+                <Size>0xF800</Size>
               </OCR_RVCT4>
               <OCR_RVCT5>
                 <Type>1</Type>
@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>.\start;.\user;.\Library</IncludePath>
+              <IncludePath>.\start;.\user;.\Library;.\Hardware;.\system</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -644,6 +644,201 @@
               <FileName>misc.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Library\misc.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Hardware</GroupName>
+          <Files>
+            <File>
+              <FileName>OLED.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\OLED.c</FilePath>
+            </File>
+            <File>
+              <FileName>OLED.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\OLED.h</FilePath>
+            </File>
+            <File>
+              <FileName>OLED_Font.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\OLED_Font.h</FilePath>
+            </File>
+            <File>
+              <FileName>LED.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\LED.c</FilePath>
+            </File>
+            <File>
+              <FileName>LED.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\LED.h</FilePath>
+            </File>
+            <File>
+              <FileName>board_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\board_config.h</FilePath>
+            </File>
+            <File>
+              <FileName>buzzer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\buzzer.c</FilePath>
+            </File>
+            <File>
+              <FileName>buzzer.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\buzzer.h</FilePath>
+            </File>
+            <File>
+              <FileName>limit.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\limit.c</FilePath>
+            </File>
+            <File>
+              <FileName>limit.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\limit.h</FilePath>
+            </File>
+            <File>
+              <FileName>key_scan.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\key_scan.c</FilePath>
+            </File>
+            <File>
+              <FileName>key_scan.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\key_scan.h</FilePath>
+            </File>
+            <File>
+              <FileName>soft_i2c.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\soft_i2c.c</FilePath>
+            </File>
+            <File>
+              <FileName>soft_i2c.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\soft_i2c.h</FilePath>
+            </File>
+            <File>
+              <FileName>wf5805f.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\wf5805f.c</FilePath>
+            </File>
+            <File>
+              <FileName>wf5805f.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\wf5805f.h</FilePath>
+            </File>
+            <File>
+              <FileName>error_code.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\error_code.h</FilePath>
+            </File>
+            <File>
+              <FileName>error_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\error_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>error_manager.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\error_manager.h</FilePath>
+            </File>
+            <File>
+              <FileName>water_depth.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\water_depth.c</FilePath>
+            </File>
+            <File>
+              <FileName>water_depth.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\water_depth.h</FilePath>
+            </File>
+            <File>
+              <FileName>stepper_um244.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\stepper_um244.c</FilePath>
+            </File>
+            <File>
+              <FileName>stepper_um244.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\stepper_um244.h</FilePath>
+            </File>
+            <File>
+              <FileName>position_tracker.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\position_tracker.c</FilePath>
+            </File>
+            <File>
+              <FileName>position_tracker.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\position_tracker.h</FilePath>
+            </File>
+            <File>
+              <FileName>homing.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\homing.c</FilePath>
+            </File>
+            <File>
+              <FileName>homing.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\homing.h</FilePath>
+            </File>
+            <File>
+              <FileName>crc16.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\crc16.c</FilePath>
+            </File>
+            <File>
+              <FileName>crc16.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\crc16.h</FilePath>
+            </File>
+            <File>
+              <FileName>param_store.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\param_store.c</FilePath>
+            </File>
+            <File>
+              <FileName>param_store.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\param_store.h</FilePath>
+            </File>
+            <File>
+              <FileName>ui_pages.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\ui_pages.c</FilePath>
+            </File>
+            <File>
+              <FileName>nap_scheduler.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\nap_scheduler.c</FilePath>
+            </File>
+            <File>
+              <FileName>auto_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\auto_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>auto_control.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\auto_control.h</FilePath>
+            </File>
+            <File>
+              <FileName>self_test.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\self_test.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_state.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\app_state.c</FilePath>
+            </File>
+            <File>
+              <FileName>menu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\menu.c</FilePath>
             </File>
           </Files>
         </Group>

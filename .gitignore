@@ -1,0 +1,19 @@
+# Keil MDK generated build outputs
+Objects/
+Listings/
+DebugConfig/
+
+# Keil per-user UI/session files
+*.uvguix*
+
+# Local editor/tool logs
+.vscode/*.log
+.vscode/*.log.lock
+stage*_build.log
+
+# Local temporary/generated helper files
+tmp/
+.codex_pdf_images/
+
+# Local personal study notes
+firmware-learning-plan.md

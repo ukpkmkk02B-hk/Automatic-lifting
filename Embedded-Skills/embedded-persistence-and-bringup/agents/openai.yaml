@@ -1,0 +1,7 @@
+interface:
+  display_name: "Persistence And Bring-Up"
+  short_description: "Plan persistence and hardware bring-up"
+  default_prompt: "Use $embedded-persistence-and-bringup to plan Flash persistence, recovery, build verification, and bring-up."
+
+policy:
+  allow_implicit_invocation: true

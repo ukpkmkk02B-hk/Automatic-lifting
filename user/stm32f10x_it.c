@@ -23,6 +23,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f10x_it.h"
+#include "stepper_um244.h"
 
 /** @addtogroup STM32F10x_StdPeriph_Template
   * @{
@@ -32,6 +33,7 @@
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+extern volatile uint32_t g_app_ms;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -134,6 +136,8 @@ void PendSV_Handler(void)
   */
 void SysTick_Handler(void)
 {
+  /* 1ms 系统时间基准：中断内只累加计数，所有业务调度都延后到主循环处理。 */
+  g_app_ms++;
 }
 
 /******************************************************************************/
@@ -151,6 +155,11 @@ void SysTick_Handler(void)
 /*void PPP_IRQHandler(void)
 {
 }*/
+
+void TIM2_IRQHandler(void)
+{
+  StepperUM244_TIM2_IRQHandler();
+}
 
 /**
   * @}

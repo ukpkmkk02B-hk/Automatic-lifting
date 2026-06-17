@@ -1,0 +1,7 @@
+interface:
+  display_name: "Embedded Project Grounding"
+  short_description: "Ground firmware work in local specs"
+  default_prompt: "Use $embedded-project-grounding to read repository rules and summarize hardware assumptions before implementation."
+
+policy:
+  allow_implicit_invocation: true

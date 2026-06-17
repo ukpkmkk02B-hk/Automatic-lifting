@@ -1,96 +1,95 @@
-#include "stm32f10x.h"                  // Device header
+#include "stm32f10x.h"
+#include "board_config.h"
 
-/**
-  * 函    数：LED初始化
-  * 参    数：无
-  * 返 回 值：无
-  */
+// 函    数：LED_Init
+// 参    数：无
+// 返 回 值：无
+// 注意事项：LED 阴极接 GPIO，推挽输出高电平时熄灭、低电平时点亮。
 void LED_Init(void)
 {
-	/*开启时钟*/
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);		//开启GPIOA的时钟
-	
-	/*GPIO初始化*/
 	GPIO_InitTypeDef GPIO_InitStructure;
+
+	RCC_APB2PeriphClockCmd(BOARD_LED1_RCC | BOARD_LED2_RCC, ENABLE);
+
+	// 两颗 LED 都是普通推挽输出，不在驱动层生成闪烁节奏。
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1 | GPIO_Pin_2;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_Init(GPIOA, &GPIO_InitStructure);						//将PA1和PA2引脚初始化为推挽输出
-	
-	/*设置GPIO初始化后的默认电平*/
-	GPIO_SetBits(GPIOA, GPIO_Pin_1 | GPIO_Pin_2);				//设置PA1和PA2引脚为高电平
+
+	GPIO_InitStructure.GPIO_Pin = BOARD_LED1_PIN;
+	GPIO_Init(BOARD_LED1_GPIO, &GPIO_InitStructure);
+
+	GPIO_InitStructure.GPIO_Pin = BOARD_LED2_PIN;
+	GPIO_Init(BOARD_LED2_GPIO, &GPIO_InitStructure);
+
+	// 默认熄灭，避免复位后把 LED 常亮误解为报警状态。
+	GPIO_SetBits(BOARD_LED1_GPIO, BOARD_LED1_PIN);
+	GPIO_SetBits(BOARD_LED2_GPIO, BOARD_LED2_PIN);
 }
 
-/**
-  * 函    数：LED1开启
-  * 参    数：无
-  * 返 回 值：无
-  */
+// 函    数：LED1_ON
+// 参    数：无
+// 返 回 值：无
+// 注意事项：低电平点亮 LED1。
 void LED1_ON(void)
 {
-	GPIO_ResetBits(GPIOA, GPIO_Pin_1);		//设置PA1引脚为低电平
+	GPIO_ResetBits(BOARD_LED1_GPIO, BOARD_LED1_PIN);
 }
 
-/**
-  * 函    数：LED1关闭
-  * 参    数：无
-  * 返 回 值：无
-  */
+// 函    数：LED1_OFF
+// 参    数：无
+// 返 回 值：无
+// 注意事项：高电平熄灭 LED1。
 void LED1_OFF(void)
 {
-	GPIO_SetBits(GPIOA, GPIO_Pin_1);		//设置PA1引脚为高电平
+	GPIO_SetBits(BOARD_LED1_GPIO, BOARD_LED1_PIN);
 }
 
-/**
-  * 函    数：LED1状态翻转
-  * 参    数：无
-  * 返 回 值：无
-  */
+// 函    数：LED1_Turn
+// 参    数：无
+// 返 回 值：无
+// 注意事项：读取输出锁存位后翻转，供上层非阻塞闪烁调度调用。
 void LED1_Turn(void)
 {
-	if (GPIO_ReadOutputDataBit(GPIOA, GPIO_Pin_1) == 0)		//获取输出寄存器的状态，如果当前引脚输出低电平
+	if (GPIO_ReadOutputDataBit(BOARD_LED1_GPIO, BOARD_LED1_PIN) == 0U)
 	{
-		GPIO_SetBits(GPIOA, GPIO_Pin_1);					//则设置PA1引脚为高电平
+		LED1_OFF();
 	}
-	else													//否则，即当前引脚输出高电平
+	else
 	{
-		GPIO_ResetBits(GPIOA, GPIO_Pin_1);					//则设置PA1引脚为低电平
+		LED1_ON();
 	}
 }
 
-/**
-  * 函    数：LED2开启
-  * 参    数：无
-  * 返 回 值：无
-  */
+// 函    数：LED2_ON
+// 参    数：无
+// 返 回 值：无
+// 注意事项：低电平点亮 LED2。
 void LED2_ON(void)
 {
-	GPIO_ResetBits(GPIOA, GPIO_Pin_2);		//设置PA2引脚为低电平
+	GPIO_ResetBits(BOARD_LED2_GPIO, BOARD_LED2_PIN);
 }
 
-/**
-  * 函    数：LED2关闭
-  * 参    数：无
-  * 返 回 值：无
-  */
+// 函    数：LED2_OFF
+// 参    数：无
+// 返 回 值：无
+// 注意事项：高电平熄灭 LED2。
 void LED2_OFF(void)
 {
-	GPIO_SetBits(GPIOA, GPIO_Pin_2);		//设置PA2引脚为高电平
+	GPIO_SetBits(BOARD_LED2_GPIO, BOARD_LED2_PIN);
 }
 
-/**
-  * 函    数：LED2状态翻转
-  * 参    数：无
-  * 返 回 值：无
-  */
+// 函    数：LED2_Turn
+// 参    数：无
+// 返 回 值：无
+// 注意事项：读取输出锁存位后翻转，供上层非阻塞闪烁调度调用。
 void LED2_Turn(void)
 {
-	if (GPIO_ReadOutputDataBit(GPIOA, GPIO_Pin_2) == 0)		//获取输出寄存器的状态，如果当前引脚输出低电平
-	{                                                  
-		GPIO_SetBits(GPIOA, GPIO_Pin_2);               		//则设置PA2引脚为高电平
-	}                                                  
-	else                                               		//否则，即当前引脚输出高电平
-	{                                                  
-		GPIO_ResetBits(GPIOA, GPIO_Pin_2);             		//则设置PA2引脚为低电平
+	if (GPIO_ReadOutputDataBit(BOARD_LED2_GPIO, BOARD_LED2_PIN) == 0U)
+	{
+		LED2_OFF();
+	}
+	else
+	{
+		LED2_ON();
 	}
 }

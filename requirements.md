@@ -21,7 +21,7 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - WF5805F address: fixed, official reference driver uses 8-bit write address `0xDA`, corresponding to 7-bit address `0x6D`.
 - Because all three WF5805F modules have the same address, each sensor must be isolated on its own software I2C bus. Do not place two WF5805F modules on the same I2C bus.
 - OLED-I2C: `PB8/PB9` for OLED only.
-- I2C-A: `PA6/PA7` for `P_air`.
+- I2C-A: `PA1/PA2` for `P_air`.
 - I2C-B: `PB6/PB7` for `P_basket`.
 - I2C-C: `PA8/PA9` for `P_tank`.
 - Motor driver: one UM244 driver.
@@ -33,20 +33,22 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - The module shown in `Materials/npn型光耦隔离器-用于限位器信号输入.jpg` is acceptable for limit input when using the 24V-input variant shown in `Materials/npn型光耦隔离器-用于限位器信号输入（详细版）.jpg`; `Materials/光耦隔离器原理图.jpg` shows an MCU-side pull-up, so its MCU-side `VCC` and any pull-up must use 3.3V.
 - Each limit switch must use an independent optocoupler input channel and an independent STM32 GPIO.
 - Alarm: low-level-trigger active buzzer module on `PA0`.
+- Status LEDs: LED1 on `PA6`, LED2 on `PA7`; LED anode through a current-limiting resistor to 3.3V, cathode to GPIO, low GPIO level turns LED on and high level turns LED off.
 - Power: 220V AC to 24V 5A supply; 24V to 5V buck powers the STM32 minimum system board `5V` pin and UM244 `PU+/DR+/MF+` signal common positive terminals.
 - 3.3V peripherals: OLED, WF5805F modules, and buzzer module must be powered from the minimum system board 3.3V rail or a dedicated 3.3V regulator, not from 5V.
 - Grounding: 24V supply negative, 5V buck GND, STM32 GND, and UM244 signal-side reference GND must have a defined common reference. 24V limit switch outputs still enter STM32 only through optocoupler isolation.
 
 ## Control Requirements
 
-- Calculate `basket_depth_mm` from `P_basket - P_air`.
-- Calculate `tank_depth_mm` from `P_tank - P_air`.
+- Calculate `basket_depth_mm` from `((P_basket - P_air) - zero_offset_basket) * 10.197`, where pressure terms are in hPa and `zero_offset_basket` is recorded by `CAL AIR` with all three sensors in the same air environment.
+- Calculate `tank_depth_mm` from `((P_tank - P_air) - zero_offset_tank) * 10.197`, where pressure terms are in hPa and `zero_offset_tank` is recorded by `CAL AIR` with all three sensors in the same air environment.
+- `E_TANK_LOW` is latched only after `tank_depth_mm < 250mm` is confirmed by about 10s of stable new valid `P_tank` samples. The low-water confirmation uses a 5-sample trimmed `TNK` decision window, ignores clearly unreasonable `TNK` jumps, and pauses briefly after recent I2C-C/P_tank failures. The current root cause is considered recovered only after `tank_depth_mm >= 260mm` is confirmed by 3 consecutive accepted samples, and the old latched alarm still requires manual confirmation.
 - Default initial target depth: `100mm`.
 - Default final target depth: `10mm`.
 - Default shallowing rate: `1mm/day`.
-- Maximum shallowing rate: `2mm/day`.
-- Target setting range: `8-100mm`.
-- Control tolerance: `±1mm`.
+- Maximum shallowing rate: `3mm/day`.
+- Target setting range: `5-100mm`.
+- Control tolerance: `±1mm` stop deadband for closed-loop correction; low-frequency correction starts at `±2mm`; hard tracking fault threshold is `±5mm`.
 - No RTC in the current version. Running days and daily progress are based only on powered-on runtime.
 - Do not compensate missed movement during power loss.
 
@@ -56,11 +58,11 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - UM244 microstep setting: `1600 pulse/rev`.
 - Motion scale: `800 pulse/mm`.
 - Default nap movement: `8 pulse = 0.01mm`.
-- Maximum single nap movement: `16 pulse`.
+- Maximum single nap movement: `24 pulse`.
 - Default nap interval at `1mm/day` and `8 pulse`: about `14.4min`.
 - Minimum nap interval: `5min`.
 - Automatic nap pulse frequency: default `800Hz`, allow fallback to `400Hz`.
-- Automatic nap bursts of `1-16 pulse` do not use acceleration or deceleration.
+- Automatic nap bursts of `1-24 pulse` do not use acceleration or deceleration.
 - `DIR` setup and hold time must be at least `5ms` around STEP output.
 - `APP_NAP_MOVE` must use a busy lock so one nap burst cannot be triggered twice.
 - Manual speed: only one speed, `1mm/s = 800 pulse/s`.
@@ -80,7 +82,11 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 - Stop all motion when left/right same-direction limits disagree.
 - Stop automatic motion on repeated sensor read failure.
 - Stop automatic motion on repeated I2C recovery failure.
-- Stop automatic motion on tank low/high water, basket low/high water, water jump, pressure physical anomaly, or stall detection.
+- Stop automatic motion on tank low water, basket low/high water, water jump, pressure physical anomaly, or stall detection.
+- Stop automatic motion and raise `E_DEPTH_TRACKING` when target tracking hard error exceeds `±5mm`, low-frequency correction repeatedly fails to return inside the start deadband, restart depth difference exceeds `3mm`, or automatic/recovery depth freshness waits time out.
+- Automatic control arbitration priority is: hard safety faults and water-range faults first, fast tank-water drop follow second, low-frequency depth tracking third, daily nap shallowing fourth, idle/display last.
+- Fast tank-water drop follow may only move the basket downward. DROP entry and dangerous-drop fault decisions require at least `20s` of valid robust trend elapsed time. A `5-30mm/min` tank drop is followable only when basket depth also becomes shallow by the configured threshold; otherwise raise `E_WATER_JUMP` after consecutive new-sample confirmation. It must stop and enter pause with `CHECK WATER` after water level stabilizes, times out, or reaches the per-event distance limit; it must not resume automatic mode without human confirmation.
+- Low-frequency depth tracking may move up or down. Error between the stop deadband and start deadband must block daily nap while observing. Upward correction shares the same daily shallowing budget as daily nap movement; if the upward budget is exhausted, do not fall back to daily nap. Downward correction and fast drop follow do not update `today_pulses_done`.
 - Buzzer silence must not clear fault state.
 - Manual movement after alarm is only allowed inside maintenance mode.
 - Limit protection must never be ignored, even in maintenance mode.
@@ -89,10 +95,10 @@ Build STM32F103C8T6 firmware for an automatic fish basket lift. The firmware con
 ## Water Safety Thresholds
 
 - `tank_min_depth_mm = 250`
-- `tank_max_depth_mm = 450`
+- `tank_max_depth_mm = 450` is retained only as a historical/diagnostic reference; tank high water is handled by mechanical overflow/leak limiting, and firmware no longer latches `E_TANK_HIGH` from this threshold.
 - `basket_min_safe_depth_mm = 5`
 - `basket_max_safe_depth_mm = 120`
-- Water jump threshold: `10mm/min`
+- Water jump threshold: non-followable sudden changes still use `10mm/min`; the 1-minute jump check and automatic DROP decisions use robust trend endpoints plus consecutive new-sample confirmation; recent explicit sensor/I2C failures pause water-jump confirmation for a short grace window. Commanded basket motion suppresses basket-only false jumps; automatic DROP decisions require at least `20s` valid trend elapsed time, enter ordinary tank drop follow at `5mm/min`, and raise `E_WATER_JUMP` for dangerous tank drop above `30mm/min`.
 - Sensor consecutive failure alarm: `5` failures
 - I2C reinitialization failure alarm: `5` failures
 - Restart depth difference threshold: `3mm`
@@ -134,6 +140,8 @@ Required states:
 - `APP_MOTOR_RELEASE`
 - `APP_FAULT`
 
+Automatic sub-control uses an `auto_control` arbiter inside the automatic states. The arbiter decides between `AUTO` daily nap, `TRK` low-frequency correction, `DROP` fast tank-water drop follow, pause, or fault. STEP output remains centralized in the UM244 finite-pulse driver.
+
 Main control logic must live in the state machine, not inside interrupts or display code.
 
 ## Flash Persistence
@@ -143,13 +151,15 @@ Main control logic must live in the state machine, not inside interrupts or disp
 - Page B: `0x0800FC00`.
 - Keil IROM should reserve only `0x08000000` size `0x0000F800` for code.
 - Use `magic/version/seq/crc16`.
-- Save parameter changes immediately.
-- Save runtime state at most every 10 minutes, plus important transitions.
+- Save parameter changes immediately through the main state machine, merged with the current runtime state in one Flash write.
+- Save runtime state at most every 1 hour, plus important transitions.
+- Use the two reserved pages as an A/B circular log of full v1 records; scan all fixed slots and select the newest valid `seq`.
 - Do not write Flash after every nap pulse group.
+- Do not change the Flash record layout for the conservative v1 recovery policy; `BOARD_PARAM_VERSION` remains `1`. Reuse `PARAM_STORE_APP_NAP_MOVE` as a conservative finite-move/DROP recovery marker.
 
 ## Power Recovery
 
-After reboot, run self-test first. If the previous state was automatic, all sensors and limits are normal, position is trusted, and depth difference is within `3mm`, automatically resume automatic running. Otherwise enter pause or fault and wait for human confirmation.
+After reboot, run self-test first. If the previous state was ordinary automatic or low-frequency tracking wait, all sensors and limits are normal, position is trusted, and depth difference is within `3mm`, automatically resume automatic running. If the stored state is `PARAM_STORE_APP_NAP_MOVE` or the reused DROP recovery marker, do not continue or auto-resume the unfinished movement; show `CHECK WATER`, mark position untrusted, and require human water-level/position confirmation before automatic mode can run again. Otherwise enter pause or fault and wait for human confirmation.
 
 ## Non-Goals For Current Version
 
@@ -161,3 +171,4 @@ After reboot, run self-test first. If the previous state was automatic, all sens
 
 
 //   ${workspaceFolder}/**
+//   "STM32F10X_MD",

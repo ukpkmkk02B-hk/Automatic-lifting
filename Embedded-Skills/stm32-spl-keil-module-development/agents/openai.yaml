@@ -1,0 +1,7 @@
+interface:
+  display_name: "STM32 SPL Keil Modules"
+  short_description: "Develop Keil STM32 SPL modules"
+  default_prompt: "Use $stm32-spl-keil-module-development to add a Keil STM32 Standard Peripheral Library module safely."
+
+policy:
+  allow_implicit_invocation: true

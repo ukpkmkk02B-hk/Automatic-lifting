@@ -1,22 +1,24 @@
 #include "stm32f10x.h"
+#include "board_config.h"
 #include "OLED_Font.h"
 
 /*引脚配置*/
-#define OLED_W_SCL(x)		GPIO_WriteBit(GPIOB, GPIO_Pin_8, (BitAction)(x))
-#define OLED_W_SDA(x)		GPIO_WriteBit(GPIOB, GPIO_Pin_9, (BitAction)(x))
+#define OLED_I2C_WRITE_ADDR	((uint8_t)(BOARD_OLED_ADDR_7BIT << 1))
+#define OLED_W_SCL(x)		GPIO_WriteBit(BOARD_OLED_SCL_GPIO, BOARD_OLED_SCL_PIN, (BitAction)(x))
+#define OLED_W_SDA(x)		GPIO_WriteBit(BOARD_OLED_SDA_GPIO, BOARD_OLED_SDA_PIN, (BitAction)(x))
 
 /*引脚初始化*/
 void OLED_I2C_Init(void)
 {
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+    RCC_APB2PeriphClockCmd(BOARD_OLED_GPIO_RCC, ENABLE);
 	
 	GPIO_InitTypeDef GPIO_InitStructure;
  	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_OD;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8;
- 	GPIO_Init(GPIOB, &GPIO_InitStructure);
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
- 	GPIO_Init(GPIOB, &GPIO_InitStructure);
+	GPIO_InitStructure.GPIO_Pin = BOARD_OLED_SCL_PIN;
+	GPIO_Init(BOARD_OLED_SCL_GPIO, &GPIO_InitStructure);
+	GPIO_InitStructure.GPIO_Pin = BOARD_OLED_SDA_PIN;
+	GPIO_Init(BOARD_OLED_SDA_GPIO, &GPIO_InitStructure);
 	
 	OLED_W_SCL(1);
 	OLED_W_SDA(1);
@@ -73,7 +75,7 @@ void OLED_I2C_SendByte(uint8_t Byte)
 void OLED_WriteCommand(uint8_t Command)
 {
 	OLED_I2C_Start();
-	OLED_I2C_SendByte(0x78);		//从机地址
+	OLED_I2C_SendByte(OLED_I2C_WRITE_ADDR);		//OLED 7-bit 地址左移后形成写地址
 	OLED_I2C_SendByte(0x00);		//写命令
 	OLED_I2C_SendByte(Command); 
 	OLED_I2C_Stop();
@@ -87,7 +89,7 @@ void OLED_WriteCommand(uint8_t Command)
 void OLED_WriteData(uint8_t Data)
 {
 	OLED_I2C_Start();
-	OLED_I2C_SendByte(0x78);		//从机地址
+	OLED_I2C_SendByte(OLED_I2C_WRITE_ADDR);		//OLED 7-bit 地址左移后形成写地址
 	OLED_I2C_SendByte(0x40);		//写数据
 	OLED_I2C_SendByte(Data);
 	OLED_I2C_Stop();
